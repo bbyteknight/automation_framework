@@ -1,6 +1,5 @@
 package base;
 
-
 import config.ConfigReader;
 import listeners.TestListener;
 import org.openqa.selenium.WebDriver;

@@ -1,6 +1,7 @@
 package tests;
 
 import base.BaseTest;
+import config.ConfigReader;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 import pages.LoginPage;
@@ -12,7 +13,7 @@ public class LoginTest extends BaseTest {
     public void loginShouldWork() {
         LoginPage loginPage = new LoginPage(getDriver());
         SecurePage securePage = new SecurePage(getDriver());
-        loginPage.login("tomsmith", "SuperSecretPassword!");
+        loginPage.login(ConfigReader.get("loginUsername"), ConfigReader.get("loginPassword"));
         Assert.assertTrue(securePage.isSecureAreaDisplay());
     }
 }
