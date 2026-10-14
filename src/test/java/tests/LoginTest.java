@@ -9,7 +9,7 @@ import pages.SecurePage;
 
 public class LoginTest extends BaseTest {
 
-    @Test
+    @Test(groups = {"smoke", "regression"})
     public void loginShouldWork() {
         LoginPage loginPage = new LoginPage(getDriver());
         SecurePage securePage = new SecurePage(getDriver());

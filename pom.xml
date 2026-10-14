@@ -30,6 +30,11 @@
         <maven-surefire-plugin.version>3.5.1</maven-surefire-plugin.version>
         <dotenv-java.version>3.0.2</dotenv-java.version>
         <log4j2.version>2.24.1</log4j2.version>
+        <parallel.mode>methods</parallel.mode>
+        <thread.count>4</thread.count>
+        <suite.file>src/testng.xml</suite.file>
+        <cucumber.version>7.20.1</cucumber.version>
+        <cucumber-reporting.version>5.8.1</cucumber-reporting.version>
     </properties>
 
     <dependencies>
@@ -124,6 +129,21 @@
             <artifactId>dotenv-java</artifactId>
             <version>${dotenv-java.version}</version>
         </dependency>
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-java</artifactId>
+            <version>${cucumber.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-testng</artifactId>
+            <version>${cucumber.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-picocontainer</artifactId>
+            <version>${cucumber.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -132,6 +152,18 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven-surefire-plugin.version}</version>
+                <configuration>
+                    <suiteXmlFiles>
+                        <suiteXmlFile>${suite.file}</suiteXmlFile>
+                    </suiteXmlFiles>
+                    <parallel>${parallel.mode}</parallel>
+                    <threadCount>${thread.count}</threadCount>
+                    <!-- Let the build continue past a failing first run so the rerun step
+                         (scripts/rerun-failed-tests.sh) gets a chance to retry only the
+                         failed scenarios. The real pass/fail gate moves to the report-merge
+                         step (maven-cucumber-reporting, checkBuildResult) below. -->
+                    <testFailureIgnore>true</testFailureIgnore>
+                </configuration>
                 <dependencies>
                     <dependency>
                         <groupId>org.apache.maven.surefire</groupId>
@@ -139,6 +171,33 @@
                         <version>${maven-surefire-plugin.version}</version>
                     </dependency>
                 </dependencies>
+            </plugin>
+            <!-- Not bound to a lifecycle phase — invoked explicitly by
+                 scripts/rerun-failed-tests.sh after both runs complete.
+                 jsonFiles is a List parameter, so it must be configured here in
+                 XML rather than via -D on the CLI (Maven won't bind list params
+                 to simple -D properties). The script guarantees run2.json exists
+                 (copying run1.json over it when no rerun was needed) so this
+                 static file list is always valid. -->
+            <plugin>
+                <groupId>net.masterthought</groupId>
+                <artifactId>maven-cucumber-reporting</artifactId>
+                <version>${cucumber-reporting.version}</version>
+                <configuration>
+                    <projectName>AutomationFramework</projectName>
+                    <outputDirectory>${project.build.directory}/cucumber-reports/merged</outputDirectory>
+                    <inputDirectory>${project.build.directory}/cucumber-reports</inputDirectory>
+                    <jsonFiles>
+                        <param>*.json</param>
+                    </jsonFiles>
+                    <mergeFeaturesById>true</mergeFeaturesById>
+                    <mergeFeaturesWithRetest>true</mergeFeaturesWithRetest>
+                    <!-- checkBuildResult is intentionally false: in testing it gates on any
+                         failure across ALL parsed executions, not the retest-reconciled result,
+                         which would fail the build even when the rerun passed. The rerun script
+                         determines the real pass/fail by inspecting the final JSON directly. -->
+                    <checkBuildResult>false</checkBuildResult>
+                </configuration>
             </plugin>
         </plugins>
     </build>

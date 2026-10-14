@@ -57,6 +57,15 @@ public class DriverFactory {
         return driver.get();
     }
 
+    /**
+     * Lets other driver factories (e.g. drivers.MobileDriverFactory for Appium)
+     * register their driver under the same ThreadLocal, so hooks/steps can use
+     * DriverFactory.getDriver()/quitDriver() uniformly regardless of platform.
+     */
+    public static void setDriver(WebDriver webDriver) {
+        driver.set(webDriver);
+    }
+
     public static void quitDriver() {
         if (driver.get() != null) {
             driver.get().quit();
