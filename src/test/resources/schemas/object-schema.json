@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Object",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "data": { "type": ["object", "null"] }
+  },
+  "required": ["id", "name"],
+  "additionalProperties": true
+}
