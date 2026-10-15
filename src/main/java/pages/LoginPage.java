@@ -1,21 +1,22 @@
 package pages;
 
+import base.BasePage;
+import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
-import org.openqa.selenium.support.PageFactory;
-import utils.ElementActions;
 
-public class LoginPage {
+/**
+ * Locator strategy for this site: prefer id (stable, already present on both
+ * inputs) over xpath/css. Fall back to xpath only for elements with no
+ * id/data-test attribute of their own — the submit button and the shared
+ * #flash message div, which the site reuses for both success and error text.
+ */
+public class LoginPage extends BasePage {
 
-    WebDriver driver;
-    ElementActions actions;
     public LoginPage(WebDriver driver) {
-        this.driver = driver;
-        PageFactory.initElements(driver, this);
-        actions = new ElementActions(driver);
+        super(driver);
     }
-
 
     @FindBy(id = "username")
     private WebElement usernameInput;
@@ -24,12 +25,18 @@ public class LoginPage {
     private WebElement passwordInput;
 
     @FindBy(xpath = "//button[@type='submit']")
-    private WebElement loginBtn;
+    private WebElement loginButton;
 
+    private static final By FLASH_MESSAGE = By.id("flash");
 
-    public void login(String username, String password){
-        actions.sendKeys(usernameInput, username, "Username Field");
-        actions.sendKeys(passwordInput, password, "Password Field");
-        actions.click(loginBtn, "Login Button");
+    public void login(String username, String password) {
+        type(usernameInput, username);
+        type(passwordInput, password);
+        click(loginButton);
+    }
+
+    /** Text of the #flash message div — populated on both successful and failed login attempts. */
+    public String getFlashMessage() {
+        return getText(FLASH_MESSAGE);
     }
 }

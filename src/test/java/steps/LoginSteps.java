@@ -2,7 +2,9 @@ package steps;
 
 import context.ScenarioContext;
 import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
+import org.testng.Assert;
 import pages.LoginPage;
 import utils.DriverFactory;
 
@@ -24,5 +26,13 @@ public class LoginSteps {
         LoginPage loginPage = scenarioContext.get("loginPage", LoginPage.class);
         loginPage.login(username, password);
         scenarioContext.set("username", username);
+    }
+
+    @Then("the user should see an error message containing {string}")
+    public void theUserShouldSeeAnErrorMessageContaining(String expectedMessage) {
+        LoginPage loginPage = scenarioContext.get("loginPage", LoginPage.class);
+        String flashMessage = loginPage.getFlashMessage();
+        Assert.assertTrue(flashMessage.contains(expectedMessage),
+                "Expected flash message to contain \"" + expectedMessage + "\" but was: \"" + flashMessage + "\"");
     }
 }

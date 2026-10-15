@@ -1,0 +1,79 @@
+x-node-env: &node-env
+  SE_EVENT_BUS_HOST: selenium-hub
+  SE_EVENT_BUS_PUBLISH_PORT: 4442
+  SE_EVENT_BUS_SUBSCRIBE_PORT: 4443
+  # Node concurrency: how many parallel sessions each node accepts. Keep this
+  # in step with pom.xml's thread.count (currently 4) so a full parallel run
+  # has a session available for every thread across chrome+firefox+edge.
+  SE_NODE_MAX_SESSIONS: 2
+  SE_NODE_OVERRIDE_MAX_SESSIONS: "true"
+  SE_NODE_SESSION_TIMEOUT: 300
+
+services:
+  selenium-hub:
+    image: selenium/hub:4.32.0
+    container_name: selenium-hub
+    ports:
+      - "4442:4442"
+      - "4443:4443"
+      - "4444:4444" # DriverFactory's default gridUrl (http://localhost:4444/wd/hub) targets this.
+
+  chrome:
+    image: selenium/node-chrome:4.32.0
+    shm_size: 2gb
+    depends_on:
+      - selenium-hub
+    environment:
+      <<: *node-env
+    volumes:
+      - /dev/shm:/dev/shm
+
+  chrome-video:
+    image: selenium/video:ffmpeg-6.1-20240621
+    depends_on:
+      - chrome
+    environment:
+      DISPLAY_CONTAINER_NAME: chrome
+      FILE_NAME: chrome_video.mp4
+    volumes:
+      - ./target/grid-videos:/videos
+
+  firefox:
+    image: selenium/node-firefox:4.32.0
+    shm_size: 2gb
+    depends_on:
+      - selenium-hub
+    environment:
+      <<: *node-env
+    volumes:
+      - /dev/shm:/dev/shm
+
+  firefox-video:
+    image: selenium/video:ffmpeg-6.1-20240621
+    depends_on:
+      - firefox
+    environment:
+      DISPLAY_CONTAINER_NAME: firefox
+      FILE_NAME: firefox_video.mp4
+    volumes:
+      - ./target/grid-videos:/videos
+
+  edge:
+    image: selenium/node-edge:4.32.0
+    shm_size: 2gb
+    depends_on:
+      - selenium-hub
+    environment:
+      <<: *node-env
+    volumes:
+      - /dev/shm:/dev/shm
+
+  edge-video:
+    image: selenium/video:ffmpeg-6.1-20240621
+    depends_on:
+      - edge
+    environment:
+      DISPLAY_CONTAINER_NAME: edge
+      FILE_NAME: edge_video.mp4
+    volumes:
+      - ./target/grid-videos:/videos
