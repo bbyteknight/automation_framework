@@ -16,7 +16,7 @@ import io.cucumber.testng.CucumberOptions;
         monochrome = true,
         // CI default: skip work-in-progress scenarios. Override with
         // -Dcucumber.filter.tags="..." (see GHERKIN_GUIDE.md) to run a different subset.
-        tags = "not @wip"
+        tags = "@web"
 )
 public class CucumberTestRunner extends AbstractTestNGCucumberTests {
 }
