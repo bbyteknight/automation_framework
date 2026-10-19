@@ -10,6 +10,7 @@ import io.cucumber.java.BeforeAll;
 import io.cucumber.java.Scenario;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import utils.CloudStatusReporter;
 import utils.DriverFactory;
 import utils.ScreenshotUtil;
 
@@ -58,6 +59,12 @@ public class Hooks {
             byte[] screenshot = ScreenshotUtil.captureScreenshotBytes(DriverFactory.getDriver());
             scenario.attach(screenshot, "image/png", "Failure Screenshot");
         }
+
+        // Must run before quitDriver() — the BrowserStack status hook needs the session still open.
+        if ("cloud".equalsIgnoreCase(ConfigReader.get("executionMode", "local")) && DriverFactory.getDriver() != null) {
+            CloudStatusReporter.reportStatus(DriverFactory.getDriver(), !scenario.isFailed(), scenario.getName());
+        }
+
         DriverFactory.quitDriver();
     }
 }
