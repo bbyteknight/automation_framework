@@ -1,0 +1,89 @@
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+
+pr:
+  branches:
+    include:
+      - main
+
+parameters:
+  - name: environment
+    displayName: Target environment
+    type: string
+    default: qa
+    values:
+      - dev
+      - qa
+      - staging
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  - group: automation-framework-secrets   # Variable group linked to Azure Key Vault (see setup notes below)
+  - name: MAVEN_OPTS
+    value: '-Dmaven.repo.local=$(Pipeline.Workspace)/.m2/repository'
+
+steps:
+  - task: UseJavaVersion@1
+    displayName: 'Set up JDK 21'
+    inputs:
+      versionSpec: '21'
+      jdkArchitectureOption: 'x64'
+
+  - task: Cache@2
+    displayName: 'Cache Maven local repository'
+    inputs:
+      key: 'maven | "$(Agent.OS)" | pom.xml'
+      restoreKeys: |
+        maven | "$(Agent.OS)"
+      path: '$(Pipeline.Workspace)/.m2/repository'
+
+  - task: AzureKeyVault@2
+    displayName: 'Fetch secrets from Azure Key Vault'
+    inputs:
+      azureSubscription: '<your-azure-service-connection-name>'
+      KeyVaultName: '<your-key-vault-name>'
+      SecretsFilter: 'LOGIN-USERNAME,LOGIN-PASSWORD,API-TOKEN,API-CLIENT-ID,API-CLIENT-SECRET,MOBILE-USERNAME,MOBILE-PASSWORD,APPIUM-CLOUD-API-KEY'
+      RunAsPreJob: false
+
+  - task: Maven@4
+    displayName: 'Run automation suite (mvn clean test)'
+    inputs:
+      mavenPomFile: 'pom.xml'
+      goals: 'clean test'
+      options: '-Denv=${{ parameters.environment }} -Dheadless=true'
+      publishJUnitResults: true
+      testResultsFiles: '**/surefire-reports/*.xml'
+      javaHomeOption: 'JDKVersion'
+      mavenVersionOption: 'Default'
+    env:
+      # Key Vault secret names use hyphens (Key Vault doesn't allow underscores);
+      # map each back to the UPPER_SNAKE_CASE env var name ConfigReader expects.
+      LOGIN_USERNAME: $(LOGIN-USERNAME)
+      LOGIN_PASSWORD: $(LOGIN-PASSWORD)
+      API_TOKEN: $(API-TOKEN)
+      API_CLIENT_ID: $(API-CLIENT-ID)
+      API_CLIENT_SECRET: $(API-CLIENT-SECRET)
+      MOBILE_USERNAME: $(MOBILE-USERNAME)
+      MOBILE_PASSWORD: $(MOBILE-PASSWORD)
+      APPIUM_CLOUD_API_KEY: $(APPIUM-CLOUD-API-KEY)
+
+  - task: PublishTestResults@2
+    displayName: 'Publish test results'
+    condition: succeededOrFailed()
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '**/surefire-reports/*.xml'
+      mergeTestResults: true
+
+  - task: PublishPipelineArtifact@1
+    displayName: 'Publish ExtentReports + screenshots'
+    condition: succeededOrFailed()
+    inputs:
+      targetPath: '$(System.DefaultWorkingDirectory)/test-output'
+      artifact: 'extent-reports'
+      publishLocation: 'pipeline'

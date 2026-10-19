@@ -12,53 +12,293 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.release>21</maven.compiler.release>
+        <selenium.version>4.32.0</selenium.version>
+        <testng.version>7.9.0</testng.version>
+        <gson.version>2.10.1</gson.version>
+        <poi-ooxml.version>5.4.0</poi-ooxml.version>
+        <slf4j.version>2.0.9</slf4j.version>
+        <commons-io.version>2.18.0</commons-io.version>
+        <webdrivermanager.version>6.1.0</webdrivermanager.version>
+        <appium-java-client.version>9.3.0</appium-java-client.version>
+        <rest-assured.version>5.5.0</rest-assured.version>
+        <jackson.version>2.18.0</jackson.version>
+        <lombok.version>1.18.38</lombok.version>
+        <assertj.version>3.26.3</assertj.version>
+        <datafaker.version>2.3.1</datafaker.version>
+        <commons-csv.version>1.11.0</commons-csv.version>
+        <maven-surefire-plugin.version>3.5.1</maven-surefire-plugin.version>
+        <dotenv-java.version>3.0.2</dotenv-java.version>
+        <log4j2.version>2.24.1</log4j2.version>
+        <parallel.mode>methods</parallel.mode>
+        <thread.count>4</thread.count>
+        <suite.file>src/testng.xml</suite.file>
+        <cucumber.version>7.20.1</cucumber.version>
+        <cucumber-reporting.version>5.8.1</cucumber-reporting.version>
+        <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
+        <allure.version>2.35.5</allure.version>
+        <exec-maven-plugin.version>3.6.4</exec-maven-plugin.version>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>org.seleniumhq.selenium</groupId>
             <artifactId>selenium-java</artifactId>
-            <version>4.32.0</version>
+            <version>${selenium.version}</version>
         </dependency>
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
-            <version>7.9.0</version>
+            <version>${testng.version}</version>
         </dependency>
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
-            <version>2.10.1</version>
-        </dependency>
-        <dependency>
-            <groupId>com.aventstack</groupId>
-            <artifactId>extentreports</artifactId>
-            <version>5.0.9</version>
+            <version>${gson.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
-            <version>5.4.0</version>
+            <version>${poi-ooxml.version}</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>2.0.9</version>
+            <version>${slf4j.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <version>2.0.9</version>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>${log4j2.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>${log4j2.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j2-impl</artifactId>
+            <version>${log4j2.version}</version>
         </dependency>
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-            <version>2.11.0</version>
+            <version>${commons-io.version}</version>
         </dependency>
         <dependency>
             <groupId>io.github.bonigarcia</groupId>
             <artifactId>webdrivermanager</artifactId>
-            <version>6.1.0</version>
+            <version>${webdrivermanager.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.appium</groupId>
+            <artifactId>java-client</artifactId>
+            <version>${appium-java-client.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <version>${rest-assured.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>json-schema-validator</artifactId>
+            <version>${rest-assured.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>${assertj.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>net.datafaker</groupId>
+            <artifactId>datafaker</artifactId>
+            <version>${datafaker.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+            <version>${commons-csv.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.cdimascio</groupId>
+            <artifactId>dotenv-java</artifactId>
+            <version>${dotenv-java.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-java</artifactId>
+            <version>${cucumber.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-testng</artifactId>
+            <version>${cucumber.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-picocontainer</artifactId>
+            <version>${cucumber.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-cucumber7-jvm</artifactId>
+            <version>${allure.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-testng</artifactId>
+            <version>${allure.version}</version>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <!-- Code-review rule: fails the build on any Thread.sleep() call. Bound to
+                 validate so it runs on every mvn compile/test/install, not just an
+                 explicit goal. See checkstyle.xml at the project root. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>${maven-checkstyle-plugin.version}</version>
+                <configuration>
+                    <configLocation>checkstyle.xml</configLocation>
+                    <includeTestSourceDirectory>true</includeTestSourceDirectory>
+                    <violationSeverity>error</violationSeverity>
+                    <failOnViolation>true</failOnViolation>
+                    <failsOnError>true</failsOnError>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>ban-thread-sleep</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven-surefire-plugin.version}</version>
+                <configuration>
+                    <suiteXmlFiles>
+                        <suiteXmlFile>${suite.file}</suiteXmlFile>
+                    </suiteXmlFiles>
+                    <parallel>${parallel.mode}</parallel>
+                    <threadCount>${thread.count}</threadCount>
+                    <!-- Let the build continue past a failing first run so the rerun step
+                         (scripts/rerun-failed-tests.sh) gets a chance to retry only the
+                         failed scenarios. The real pass/fail gate moves to the report-merge
+                         step (maven-cucumber-reporting, checkBuildResult) below. -->
+                    <testFailureIgnore>true</testFailureIgnore>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.apache.maven.surefire</groupId>
+                        <artifactId>surefire-testng</artifactId>
+                        <version>${maven-surefire-plugin.version}</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+            <!-- Not bound to a lifecycle phase — invoked explicitly by
+                 scripts/rerun-failed-tests.sh after both runs complete.
+                 jsonFiles is a List parameter, so it must be configured here in
+                 XML rather than via -D on the CLI (Maven won't bind list params
+                 to simple -D properties). The script guarantees run2.json exists
+                 (copying run1.json over it when no rerun was needed) so this
+                 static file list is always valid. -->
+            <plugin>
+                <groupId>net.masterthought</groupId>
+                <artifactId>maven-cucumber-reporting</artifactId>
+                <version>${cucumber-reporting.version}</version>
+                <configuration>
+                    <projectName>AutomationFramework</projectName>
+                    <outputDirectory>${project.build.directory}/cucumber-reports/merged</outputDirectory>
+                    <inputDirectory>${project.build.directory}/cucumber-reports</inputDirectory>
+                    <jsonFiles>
+                        <param>*.json</param>
+                    </jsonFiles>
+                    <mergeFeaturesById>true</mergeFeaturesById>
+                    <mergeFeaturesWithRetest>true</mergeFeaturesWithRetest>
+                    <!-- checkBuildResult is intentionally false: in testing it gates on any
+                         failure across ALL parsed executions, not the retest-reconciled result,
+                         which would fail the build even when the rerun passed. The rerun script
+                         determines the real pass/fail by inspecting the final JSON directly. -->
+                    <checkBuildResult>false</checkBuildResult>
+                </configuration>
+            </plugin>
+            <!-- The io.qameta.allure:allure-maven plugin manages its own download of the Allure
+                 CLI, but that download resolves io.qameta.allure:allure-commandline, which has no
+                 2.35.5 release on Maven Central (allure-cucumber7-jvm/allure-testng do) — a real
+                 version gap, not a mirror/proxy problem. Shelling out to an Allure CLI already on
+                 PATH (e.g. `npm install -g allure-commandline`, or whatever a CI image provides)
+                 sidesteps that gap entirely. Not bound to a lifecycle phase — run explicitly via
+                 `mvn exec:exec@allure-report` (static HTML into target/allure-report) or
+                 `mvn exec:exec@allure-serve` (local preview server) once target/allure-results has
+                 been populated by a test run. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>${exec-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>allure-report</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>allure</executable>
+                            <arguments>
+                                <argument>generate</argument>
+                                <argument>${project.build.directory}/allure-results</argument>
+                                <argument>--clean</argument>
+                                <argument>-o</argument>
+                                <argument>${project.build.directory}/allure-report</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>allure-serve</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>allure</executable>
+                            <arguments>
+                                <argument>serve</argument>
+                                <argument>${project.build.directory}/allure-results</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>

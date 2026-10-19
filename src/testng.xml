@@ -1,8 +1,21 @@
 <!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
-<suite name="Web Suite">
+<suite name="Web Suite" parallel="methods" thread-count="4">
+    <!-- No suite-wide listeners: TestListener/AllureTestNg are registered via @Listeners on
+         base.BaseTest instead, so they only wrap plain TestNG tests (LoginTest) and never the
+         Cucumber runner below, which already reports through its own Allure Cucumber plugin. -->
+
     <test name="Login Test">
+        <!-- Run all tests by default. To filter by group/tag, override via CLI:
+             mvn test -Dgroups=smoke
+             mvn test -Dgroups=regression -DexcludedGroups=smoke -->
         <classes>
             <class name="tests.LoginTest"/>
+        </classes>
+    </test>
+
+    <test name="Cucumber Suite">
+        <classes>
+            <class name="runners.CucumberTestRunner"/>
         </classes>
     </test>
 </suite>

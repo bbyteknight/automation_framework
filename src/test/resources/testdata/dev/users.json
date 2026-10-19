@@ -1,0 +1,10 @@
+{
+  "standardUser": {
+    "username": "tomsmith",
+    "password": "SuperSecretPassword!"
+  },
+  "mobileDemoUser": {
+    "username": "bod@example.com",
+    "password": "10203040"
+  }
+}
