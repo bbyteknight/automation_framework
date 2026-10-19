@@ -12,7 +12,7 @@ REPORTS_DIR="target/cucumber-reports"
 
 echo "== Run 1: full suite =="
 rm -f "$RERUN_FILE"
-mvn test
+mvn test "$@"
 # testFailureIgnore=true in pom.xml means this always exits 0; real pass/fail
 # is decided below by inspecting the JSON output directly.
 
@@ -20,7 +20,7 @@ FINAL_JSON="$REPORTS_DIR/run1.json"
 
 if [ -s "$RERUN_FILE" ]; then
     echo "== Run 2: rerunning failed scenarios listed in $RERUN_FILE =="
-    mvn test -Dsuite.file=src/testng-rerun.xml
+    mvn test -Dsuite.file=src/testng-rerun.xml "$@"
     FINAL_JSON="$REPORTS_DIR/run2.json"
 else
     echo "== No failures on run 1 — skipping rerun =="

@@ -1,0 +1,112 @@
+name: CI - Automation Suite
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: Target environment (loads config/<env>.properties)
+        required: false
+        default: dev
+        type: choice
+        options: [dev, qa, staging]
+      tags:
+        description: Cucumber tag filter expression
+        required: false
+        default: "not @wip"
+      browser:
+        description: Browser to run against (web platform only for now)
+        required: false
+        default: chrome
+        type: choice
+        options: [chrome, firefox, edge]
+  push:
+    branches: [develop, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      ENV: ${{ inputs.env || 'dev' }}
+      BROWSER: ${{ inputs.browser || 'chrome' }}
+      HEADLESS: "true"
+      EXECUTION_MODE: local
+      # Only LOGIN_USERNAME/LOGIN_PASSWORD are populated as repo secrets today.
+      # The rest resolve to empty string until added — ConfigReader just warns,
+      # it doesn't fail the build, for scenarios that don't need them.
+      LOGIN_USERNAME: ${{ secrets.LOGIN_USERNAME }}
+      LOGIN_PASSWORD: ${{ secrets.LOGIN_PASSWORD }}
+      API_TOKEN: ${{ secrets.API_TOKEN }}
+      API_CLIENT_ID: ${{ secrets.API_CLIENT_ID }}
+      API_CLIENT_SECRET: ${{ secrets.API_CLIENT_SECRET }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build
+        run: mvn -B -ntp clean compile test-compile
+
+      - name: Start infrastructure (verify headless Chrome)
+        run: google-chrome --version
+        # ubuntu-latest ships Chrome; WebDriverManager (already a project
+        # dependency) downloads a matching chromedriver at test runtime.
+
+      - name: Install Allure CLI
+        run: npm install -g allure-commandline
+
+      - name: Test (with automatic rerun of failed scenarios)
+        id: run_tests
+        continue-on-error: true
+        run: |
+          chmod +x scripts/rerun-failed-tests.sh
+          ./scripts/rerun-failed-tests.sh -Dcucumber.filter.tags="${{ inputs.tags || 'not @wip' }}"
+
+      - name: Generate Allure report
+        if: always()
+        run: mvn -B -ntp exec:exec@allure-report
+
+      - name: Upload Allure report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: target/allure-report
+          retention-days: 30
+
+      - name: Upload Cucumber HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cucumber-report
+          path: target/cucumber-reports
+          retention-days: 30
+
+      - name: Upload failure screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-screenshots
+          path: test-output/screenshots
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Teardown
+        if: always()
+        run: echo "Ephemeral runner — no persistent infrastructure to tear down."
+
+      - name: Fail job if tests failed
+        if: steps.run_tests.outcome == 'failure'
+        run: exit 1
