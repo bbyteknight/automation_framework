@@ -1,5 +1,6 @@
 package api.filters;
 
+import io.qameta.allure.Allure;
 import io.restassured.filter.Filter;
 import io.restassured.filter.FilterContext;
 import io.restassured.http.Header;
@@ -17,11 +18,9 @@ import java.util.stream.StreamSupport;
 /**
  * Logs every API request/response through Log4j (console + target/logs, thread-aware,
  * same pipeline as the rest of the framework) instead of RestAssured's own
- * stdout-only request/response logging.
- *
- * This is also the hook point for attaching request/response details to a test
- * report: once Allure replaces ExtentReports, add Allure.addAttachment(...) calls
- * here so every API call shows up in the report without touching callers.
+ * stdout-only request/response logging, and attaches the same details to the active
+ * Allure test (Allure.addAttachment correlates to whichever test is running on this
+ * thread, so no Scenario/test reference needs to be threaded through API client code).
  */
 public class ApiLoggingFilter implements Filter {
 
@@ -31,18 +30,25 @@ public class ApiLoggingFilter implements Filter {
     public Response filter(FilterableRequestSpecification requestSpec,
                             FilterableResponseSpecification responseSpec,
                             FilterContext ctx) {
+        String headers = maskedHeaders(StreamSupport.stream(requestSpec.getHeaders().spliterator(), false));
+        String requestBody = requestSpec.getBody() != null ? requestSpec.getBody().toString() : "";
+
         logger.info("API Request -> {} {}\nHeaders: {}{}",
-                requestSpec.getMethod(),
-                requestSpec.getURI(),
-                maskedHeaders(StreamSupport.stream(requestSpec.getHeaders().spliterator(), false)),
-                requestSpec.getBody() != null ? "\nRequest Body: " + requestSpec.getBody() : "");
+                requestSpec.getMethod(), requestSpec.getURI(), headers,
+                requestBody.isBlank() ? "" : "\nRequest Body: " + requestBody);
+
+        Allure.addAttachment("API Request -> " + requestSpec.getMethod() + " " + requestSpec.getURI(),
+                "text/plain",
+                "Headers: " + headers + (requestBody.isBlank() ? "" : "\n\nBody:\n" + requestBody),
+                ".txt");
 
         Response response = ctx.next(requestSpec, responseSpec);
 
+        String responseBody = response.getBody().asPrettyString();
         logger.info("API Response <- {} ({} ms)\nResponse Body: {}",
-                response.getStatusCode(),
-                response.getTime(),
-                response.getBody().asPrettyString());
+                response.getStatusCode(), response.getTime(), responseBody);
+
+        Allure.addAttachment("API Response <- " + response.getStatusCode(), "text/plain", responseBody, ".txt");
 
         return response;
     }

@@ -10,7 +10,8 @@ import io.cucumber.testng.CucumberOptions;
                 "pretty",
                 "html:target/cucumber-reports/report.html",
                 "json:target/cucumber-reports/run1.json",
-                "rerun:target/rerun.txt"
+                "rerun:target/rerun.txt",
+                "io.qameta.allure.cucumber7jvm.AllureCucumber7Jvm"
         },
         monochrome = true,
         // CI default: skip work-in-progress scenarios. Override with

@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Configuration problems",
+    "matchedStatuses": ["broken"],
+    "traceRegex": ".*exceptions\\.ConfigurationException.*"
+  },
+  {
+    "name": "Test data problems",
+    "matchedStatuses": ["broken"],
+    "traceRegex": ".*exceptions\\.TestDataException.*"
+  },
+  {
+    "name": "Infrastructure problems",
+    "matchedStatuses": ["broken"],
+    "traceRegex": ".*(exceptions\\.RetryExhaustedException|WebDriverException|SessionNotCreatedException|ConnectException|SocketTimeoutException|UnknownHostException).*"
+  },
+  {
+    "name": "Product defects",
+    "matchedStatuses": ["failed"],
+    "traceRegex": ".*AssertionError.*"
+  },
+  {
+    "name": "Ignored tests",
+    "matchedStatuses": ["skipped"]
+  }
+]

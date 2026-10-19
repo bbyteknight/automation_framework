@@ -16,7 +16,6 @@
         <selenium.version>4.32.0</selenium.version>
         <testng.version>7.9.0</testng.version>
         <gson.version>2.10.1</gson.version>
-        <extentreports.version>5.0.9</extentreports.version>
         <poi-ooxml.version>5.4.0</poi-ooxml.version>
         <slf4j.version>2.0.9</slf4j.version>
         <commons-io.version>2.18.0</commons-io.version>
@@ -37,6 +36,8 @@
         <cucumber.version>7.20.1</cucumber.version>
         <cucumber-reporting.version>5.8.1</cucumber-reporting.version>
         <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
+        <allure.version>2.35.5</allure.version>
+        <exec-maven-plugin.version>3.6.4</exec-maven-plugin.version>
     </properties>
 
     <dependencies>
@@ -54,11 +55,6 @@
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
             <version>${gson.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.aventstack</groupId>
-            <artifactId>extentreports</artifactId>
-            <version>${extentreports.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.poi</groupId>
@@ -156,6 +152,16 @@
             <artifactId>cucumber-picocontainer</artifactId>
             <version>${cucumber.version}</version>
         </dependency>
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-cucumber7-jvm</artifactId>
+            <version>${allure.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-testng</artifactId>
+            <version>${allure.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -247,6 +253,51 @@
                          determines the real pass/fail by inspecting the final JSON directly. -->
                     <checkBuildResult>false</checkBuildResult>
                 </configuration>
+            </plugin>
+            <!-- The io.qameta.allure:allure-maven plugin manages its own download of the Allure
+                 CLI, but that download resolves io.qameta.allure:allure-commandline, which has no
+                 2.35.5 release on Maven Central (allure-cucumber7-jvm/allure-testng do) — a real
+                 version gap, not a mirror/proxy problem. Shelling out to an Allure CLI already on
+                 PATH (e.g. `npm install -g allure-commandline`, or whatever a CI image provides)
+                 sidesteps that gap entirely. Not bound to a lifecycle phase — run explicitly via
+                 `mvn exec:exec@allure-report` (static HTML into target/allure-report) or
+                 `mvn exec:exec@allure-serve` (local preview server) once target/allure-results has
+                 been populated by a test run. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>${exec-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>allure-report</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>allure</executable>
+                            <arguments>
+                                <argument>generate</argument>
+                                <argument>${project.build.directory}/allure-results</argument>
+                                <argument>--clean</argument>
+                                <argument>-o</argument>
+                                <argument>${project.build.directory}/allure-report</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>allure-serve</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>allure</executable>
+                            <arguments>
+                                <argument>serve</argument>
+                                <argument>${project.build.directory}/allure-results</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

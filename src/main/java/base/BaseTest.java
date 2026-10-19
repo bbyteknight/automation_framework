@@ -1,12 +1,16 @@
 package base;
 
 import config.ConfigReader;
+import io.qameta.allure.testng.AllureTestNg;
 import listeners.TestListener;
 import org.openqa.selenium.WebDriver;
 import org.testng.annotations.*;
 import utils.DriverFactory;
 
-@Listeners(TestListener.class)
+// Scoped here (not suite-wide in testng.xml) so it only wraps plain TestNG tests like
+// LoginTest — the Cucumber runner already gets its own, correctly-structured Allure result via
+// the AllureCucumber7Jvm Cucumber plugin, and suite-wide AllureTestNg would double-report it.
+@Listeners({TestListener.class, AllureTestNg.class})
 public class BaseTest {
 
     protected WebDriver driver;
