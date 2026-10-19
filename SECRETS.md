@@ -34,7 +34,8 @@ checking environment variables and `.env`.
 | `API_CLIENT_SECRET` | API — REST Assured clients | OAuth client secret, if applicable |
 | `MOBILE_USERNAME` | Mobile — Appium tests | Mobile app login username |
 | `MOBILE_PASSWORD` | Mobile — Appium tests | Mobile app login password |
-| `APPIUM_CLOUD_API_KEY` | Mobile — Appium | API key for a device cloud (BrowserStack/Sauce Labs, etc.), if used |
+| `BROWSERSTACK_USERNAME` | Mobile — `MobileDriverFactory`, `CloudAppUploader` (executionMode=cloud) | BrowserStack account username |
+| `BROWSERSTACK_ACCESS_KEY` | Mobile — `MobileDriverFactory`, `CloudAppUploader` (executionMode=cloud) | BrowserStack account access key |
 
 ## Local setup
 

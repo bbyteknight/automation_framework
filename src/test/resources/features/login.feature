@@ -3,7 +3,7 @@ Feature: Login
 
   Scenario: Successful login with valid credentials
     Given the user is on the login page
-    When the user logs in with username "tomsmith" and password "SuperSecretPassword!"
+    When the user logs in with the "standardUser" test account
     Then the user should land on the secure area
 
   Scenario Outline: Failed login with invalid credentials
