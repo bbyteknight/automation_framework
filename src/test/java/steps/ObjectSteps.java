@@ -9,6 +9,10 @@ import io.cucumber.java.en.And;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import org.testng.Assert;
+import testdata.ApiTestDataManager;
+import testdata.TestDataGenerator;
+import testdata.TestDataReader;
+import testdata.model.ObjectTestData;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,9 +22,44 @@ public class ObjectSteps {
 
     private final ScenarioContext scenarioContext;
     private final ObjectClient objectClient = new ObjectClient();
+    private final ApiTestDataManager apiTestDataManager = new ApiTestDataManager();
 
     public ObjectSteps(ScenarioContext scenarioContext) {
         this.scenarioContext = scenarioContext;
+    }
+
+    @When("the user creates an object using test data {string}")
+    public void theUserCreatesAnObjectUsingTestData(String dataKey) {
+        ObjectTestData testData = TestDataReader.readExcelEntry("objects.xlsx", "objects", dataKey, ObjectTestData.class);
+        String uniqueName = TestDataGenerator.uniqueName(testData.getName());
+        CreateObjectRequest request = CreateObjectRequest.builder()
+                .name(uniqueName)
+                .data(testData.toDataMap())
+                .build();
+        ObjectResponse created = objectClient.createObject(request);
+        scenarioContext.set("createdObject", created);
+        scenarioContext.set("expectedObjectName", uniqueName);
+        apiTestDataManager.track(scenarioContext, created.getId());
+    }
+
+    @When("the user updates the created object using test data {string}")
+    public void theUserUpdatesTheCreatedObjectUsingTestData(String dataKey) {
+        ObjectTestData testData = TestDataReader.readExcelEntry("objects.xlsx", "objects", dataKey, ObjectTestData.class);
+        ObjectResponse created = scenarioContext.get("createdObject", ObjectResponse.class);
+        String expectedName = scenarioContext.get("expectedObjectName", String.class);
+        CreateObjectRequest request = CreateObjectRequest.builder()
+                .name(expectedName)
+                .data(testData.toDataMap())
+                .build();
+        scenarioContext.set("createdObject", objectClient.updateObject(created.getId(), request));
+        scenarioContext.set("expectedColor", testData.getColor());
+    }
+
+    @Then("the retrieved object should have the expected name")
+    public void theRetrievedObjectShouldHaveTheExpectedName() {
+        ObjectResponse fetched = scenarioContext.get("fetchedObject", ObjectResponse.class);
+        String expectedName = scenarioContext.get("expectedObjectName", String.class);
+        Assert.assertEquals(fetched.getName(), expectedName);
     }
 
     @When("the user retrieves all objects")
@@ -40,7 +79,9 @@ public class ObjectSteps {
                 .name(name)
                 .data(toTypedMap(dataTable))
                 .build();
-        scenarioContext.set("createdObject", objectClient.createObject(request));
+        ObjectResponse created = objectClient.createObject(request);
+        scenarioContext.set("createdObject", created);
+        apiTestDataManager.track(scenarioContext, created.getId());
     }
 
     @Then("the object should be created successfully")
@@ -55,26 +96,11 @@ public class ObjectSteps {
         scenarioContext.set("fetchedObject", objectClient.getObjectById(created.getId()));
     }
 
-    @Then("the retrieved object should have name {string}")
-    public void theRetrievedObjectShouldHaveName(String expectedName) {
-        ObjectResponse fetched = scenarioContext.get("fetchedObject", ObjectResponse.class);
-        Assert.assertEquals(fetched.getName(), expectedName);
-    }
-
-    @When("the user updates the created object with name {string} and data")
-    public void theUserUpdatesTheCreatedObjectWithNameAndData(String name, DataTable dataTable) {
-        ObjectResponse created = scenarioContext.get("createdObject", ObjectResponse.class);
-        CreateObjectRequest request = CreateObjectRequest.builder()
-                .name(name)
-                .data(toTypedMap(dataTable))
-                .build();
-        scenarioContext.set("createdObject", objectClient.updateObject(created.getId(), request));
-    }
-
     @Then("the object should be updated successfully")
     public void theObjectShouldBeUpdatedSuccessfully() {
         ObjectResponse updated = scenarioContext.get("createdObject", ObjectResponse.class);
-        Assert.assertEquals(updated.getData().get("color"), "silver");
+        String expectedColor = scenarioContext.get("expectedColor", String.class);
+        Assert.assertEquals(updated.getData().get("color"), expectedColor);
     }
 
     @When("the user deletes the created object")
@@ -82,6 +108,7 @@ public class ObjectSteps {
         ObjectResponse created = scenarioContext.get("createdObject", ObjectResponse.class);
         objectClient.deleteObject(created.getId());
         scenarioContext.set("deletedObjectId", created.getId());
+        apiTestDataManager.untrack(scenarioContext, created.getId());
     }
 
     @Then("the object should be deleted successfully")

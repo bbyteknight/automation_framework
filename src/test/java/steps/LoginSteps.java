@@ -6,6 +6,8 @@ import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import org.testng.Assert;
 import pages.LoginPage;
+import testdata.TestDataReader;
+import testdata.model.TestUser;
 import utils.DriverFactory;
 
 public class LoginSteps {
@@ -19,6 +21,12 @@ public class LoginSteps {
     @Given("the user is on the login page")
     public void theUserIsOnTheLoginPage() {
         scenarioContext.set("loginPage", new LoginPage(DriverFactory.getDriver()));
+    }
+
+    @When("the user logs in with the {string} test account")
+    public void theUserLogsInWithTheTestAccount(String accountKey) {
+        TestUser user = TestDataReader.readJsonEntry("users.json", accountKey, TestUser.class);
+        theUserLogsInWithUsernameAndPassword(user.getUsername(), user.getPassword());
     }
 
     @When("the user logs in with username {string} and password {string}")

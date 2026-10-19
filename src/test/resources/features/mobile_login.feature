@@ -4,7 +4,7 @@ Feature: Mobile Login
   Scenario: Successful login with demo credentials on Android
     Given the user is on the home screen
     When the user opens the login screen
-    And the user submits login with username "bod@example.com" and password "10203040"
+    And the user submits login with the "mobileDemoUser" test account
     Then the user should be logged in
 
   # Same scenario, targeting iOS via LoginScreen/HomeScreen's @iOSXCUITFindBy locators.
@@ -14,5 +14,5 @@ Feature: Mobile Login
   Scenario: Successful login with demo credentials on iOS
     Given the user is on the home screen
     When the user opens the login screen
-    And the user submits login with username "bod@example.com" and password "10203040"
+    And the user submits login with the "mobileDemoUser" test account
     Then the user should be logged in

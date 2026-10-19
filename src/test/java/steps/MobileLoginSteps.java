@@ -7,6 +7,8 @@ import io.cucumber.java.en.When;
 import org.testng.Assert;
 import screens.HomeScreen;
 import screens.LoginScreen;
+import testdata.TestDataReader;
+import testdata.model.TestUser;
 import utils.DriverFactory;
 
 public class MobileLoginSteps {
@@ -28,10 +30,11 @@ public class MobileLoginSteps {
         scenarioContext.set("loginScreen", homeScreen.openLoginScreen());
     }
 
-    @When("the user submits login with username {string} and password {string}")
-    public void theUserSubmitsLoginWithUsernameAndPassword(String username, String password) {
+    @When("the user submits login with the {string} test account")
+    public void theUserSubmitsLoginWithTheTestAccount(String accountKey) {
+        TestUser user = TestDataReader.readJsonEntry("users.json", accountKey, TestUser.class);
         LoginScreen loginScreen = scenarioContext.get("loginScreen", LoginScreen.class);
-        scenarioContext.set("homeScreen", loginScreen.login(username, password));
+        scenarioContext.set("homeScreen", loginScreen.login(user.getUsername(), user.getPassword()));
     }
 
     @Then("the user should be logged in")

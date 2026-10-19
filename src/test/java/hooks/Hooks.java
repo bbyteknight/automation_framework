@@ -2,6 +2,7 @@ package hooks;
 
 import config.ConfigReader;
 import context.GlobalContext;
+import context.ScenarioContext;
 import drivers.MobileDriverFactory;
 import io.cucumber.java.After;
 import io.cucumber.java.AfterAll;
@@ -10,6 +11,7 @@ import io.cucumber.java.BeforeAll;
 import io.cucumber.java.Scenario;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import testdata.ApiTestDataManager;
 import utils.CloudStatusReporter;
 import utils.DriverFactory;
 import utils.ScreenshotUtil;
@@ -17,6 +19,13 @@ import utils.ScreenshotUtil;
 public class Hooks {
 
     private static final Logger logger = LogManager.getLogger(Hooks.class);
+
+    private final ScenarioContext scenarioContext;
+    private final ApiTestDataManager apiTestDataManager = new ApiTestDataManager();
+
+    public Hooks(ScenarioContext scenarioContext) {
+        this.scenarioContext = scenarioContext;
+    }
 
     @BeforeAll
     public static void globalSetup() {
@@ -66,5 +75,12 @@ public class Hooks {
         }
 
         DriverFactory.quitDriver();
+    }
+
+    // Sweeps up any API-created test object the scenario tracked but didn't explicitly delete
+    // itself (e.g. objects-data-driven.feature), so nothing leaks into the shared sandbox.
+    @After("@api")
+    public void cleanupApiTestData() {
+        apiTestDataManager.cleanup(scenarioContext);
     }
 }
