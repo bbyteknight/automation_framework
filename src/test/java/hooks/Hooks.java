@@ -16,6 +16,8 @@ import utils.CloudStatusReporter;
 import utils.DriverFactory;
 import utils.ScreenshotUtil;
 
+import java.io.File;
+
 public class Hooks {
 
     private static final Logger logger = LogManager.getLogger(Hooks.class);
@@ -67,6 +69,11 @@ public class Hooks {
         if (scenario.isFailed() && DriverFactory.getDriver() != null) {
             byte[] screenshot = ScreenshotUtil.captureScreenshotBytes(DriverFactory.getDriver());
             scenario.attach(screenshot, "image/png", "Failure Screenshot");
+
+            // Also keep a copy on disk — easier to pull up locally than digging through the
+            // Cucumber JSON report's embedded attachment.
+            File savedScreenshot = ScreenshotUtil.saveScreenshotToFile(DriverFactory.getDriver(), scenario.getName());
+            logger.info("📸 Failure screenshot saved: {}", savedScreenshot.getPath());
         }
 
         // Must run before quitDriver() — the BrowserStack status hook needs the session still open.

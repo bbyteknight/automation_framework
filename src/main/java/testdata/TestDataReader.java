@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import config.ConfigReader;
+import exceptions.TestDataException;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.poi.ss.usermodel.Cell;
@@ -44,7 +45,7 @@ public final class TestDataReader {
         Map<String, Object> all = readJson(fileName);
         Object entry = all.get(key);
         if (entry == null) {
-            throw new RuntimeException("❗ No test data entry \"" + key + "\" found in " + resourcePath(fileName));
+            throw new TestDataException("❗ No test data entry \"" + key + "\" found in " + resourcePath(fileName));
         }
         return OBJECT_MAPPER.convertValue(entry, type);
     }
@@ -54,7 +55,7 @@ public final class TestDataReader {
             return OBJECT_MAPPER.readValue(is, new TypeReference<Map<String, Object>>() {
             });
         } catch (IOException e) {
-            throw new RuntimeException("❌ Failed to read test data file: " + resourcePath(fileName), e);
+            throw new TestDataException("❌ Failed to read test data file: " + resourcePath(fileName), e);
         }
     }
 
@@ -76,7 +77,7 @@ public final class TestDataReader {
             parser.forEach(record -> rows.add(new LinkedHashMap<>(record.toMap())));
             return rows;
         } catch (IOException e) {
-            throw new RuntimeException("❌ Failed to read test data file: " + resourcePath(fileName), e);
+            throw new TestDataException("❌ Failed to read test data file: " + resourcePath(fileName), e);
         }
     }
 
@@ -90,7 +91,7 @@ public final class TestDataReader {
         try (InputStream is = openStream(fileName); Workbook workbook = WorkbookFactory.create(is)) {
             Sheet sheet = workbook.getSheet(sheetName);
             if (sheet == null) {
-                throw new RuntimeException("❗ Sheet \"" + sheetName + "\" not found in " + resourcePath(fileName));
+                throw new TestDataException("❗ Sheet \"" + sheetName + "\" not found in " + resourcePath(fileName));
             }
             DataFormatter formatter = new DataFormatter();
             Iterator<Row> rowIterator = sheet.iterator();
@@ -113,7 +114,7 @@ public final class TestDataReader {
             }
             return rows;
         } catch (IOException e) {
-            throw new RuntimeException("❌ Failed to read test data file: " + resourcePath(fileName), e);
+            throw new TestDataException("❌ Failed to read test data file: " + resourcePath(fileName), e);
         }
     }
 
@@ -121,7 +122,7 @@ public final class TestDataReader {
         Map<String, String> row = rows.stream()
                 .filter(r -> key.equals(r.get("key")))
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException(
+                .orElseThrow(() -> new TestDataException(
                         "❗ No test data row with key \"" + key + "\" found in " + resourcePath(fileName)));
         return OBJECT_MAPPER.convertValue(row, type);
     }
@@ -130,7 +131,7 @@ public final class TestDataReader {
         String path = resourcePath(fileName);
         InputStream is = TestDataReader.class.getClassLoader().getResourceAsStream(path);
         if (is == null) {
-            throw new RuntimeException("❗ Test data file not found on classpath: " + path);
+            throw new TestDataException("❗ Test data file not found on classpath: " + path);
         }
         return is;
     }

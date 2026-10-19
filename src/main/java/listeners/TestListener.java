@@ -2,36 +2,28 @@ package listeners;
 
 import com.aventstack.extentreports.ExtentTest;
 import com.aventstack.extentreports.Status;
-import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.openqa.selenium.OutputType;
-import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.WebDriver;
 import org.testng.ITestContext;
 import org.testng.ITestListener;
 import org.testng.ITestResult;
 import reporting.ExtentTestManager;
 import reporting.ReportManager;
+import utils.DateHelper;
 import utils.DriverFactory;
 import utils.ScreenshotUtil;
-
-import java.io.File;
-import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 
 public class TestListener implements ITestListener {
 
     private static final Logger logger = LogManager.getLogger(TestListener.class);
-    private static final String SCREENSHOT_DIR = "screenshots/";
     private static final String REPORTS_DIR = "test-output/reports/";
 
     @Override
     public void onTestStart(ITestResult result) {
         String testName = result.getMethod().getMethodName();
 
-        String reportFileName = REPORTS_DIR + testName + "_" + new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date()) + ".html";
+        String reportFileName = REPORTS_DIR + testName + "_" + DateHelper.timestamp() + ".html";
 
         ReportManager.getInstance(reportFileName);
         ExtentTestManager.setTest(ReportManager.createTest(testName));
@@ -60,6 +52,7 @@ public class TestListener implements ITestListener {
 
         if (driver != null) {
             ScreenshotUtil.addScreenshotToReport(driver, test, "❌ Test Failed Screenshot", "fail");
+            ScreenshotUtil.saveScreenshotToFile(driver, result.getName());
         }
 
         test.fail(result.getThrowable());
@@ -84,20 +77,5 @@ public class TestListener implements ITestListener {
     public void onFinish(ITestContext context) {
         logger.info("🏁 Test Context Finished: {}", context.getName());
         ReportManager.flushReports(); // Ensure we flush the report to disk
-    }
-
-    private String captureScreenshot(WebDriver driver, String testName) {
-        String date = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String screenshotPath = SCREENSHOT_DIR + testName.replaceAll("[^a-zA-Z0-9_-]", "_") + "_" + date + ".png";
-
-        // Take screenshot
-        File srcFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
-        try {
-            FileUtils.copyFile(srcFile, new File(screenshotPath));
-            logger.info("📸 Screenshot saved: {}", screenshotPath);
-        } catch (IOException e) {
-            logger.error("❗ Could not save screenshot: {}", e.getMessage());
-        }
-        return screenshotPath;
     }
 }

@@ -4,13 +4,13 @@ import context.ScenarioContext;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
-import org.testng.Assert;
 import screens.CartScreen;
 import screens.ProductDetailScreen;
 import screens.ProductsScreen;
 import testdata.TestDataReader;
 import testdata.model.Product;
 import utils.DriverFactory;
+import utils.SoftAssertionsWrapper;
 
 public class MobileShoppingSteps {
 
@@ -41,19 +41,17 @@ public class MobileShoppingSteps {
         scenarioContext.set("cartScreen", detailScreen.openCart());
     }
 
-    @Then("the cart should contain the expected item count")
-    public void theCartShouldContainTheExpectedItemCount() {
+    // Soft-asserted together: if the cart's item count AND total are both wrong, the failure
+    // reports both mismatches instead of stopping at whichever check runs first.
+    @Then("the cart should match the expected item count and total")
+    public void theCartShouldMatchTheExpectedItemCountAndTotal() {
         Product product = scenarioContext.get("testProduct", Product.class);
         CartScreen cartScreen = scenarioContext.get("cartScreen", CartScreen.class);
-        Assert.assertEquals(cartScreen.getItemsCount(), product.getExpectedCartText(),
-                "Expected cart items label to be \"" + product.getExpectedCartText() + "\"");
-    }
-
-    @Then("the cart total should match the expected total")
-    public void theCartTotalShouldMatchTheExpectedTotal() {
-        Product product = scenarioContext.get("testProduct", Product.class);
-        CartScreen cartScreen = scenarioContext.get("cartScreen", CartScreen.class);
-        Assert.assertEquals(cartScreen.getTotalPrice(), product.getExpectedTotal(),
-                "Expected cart total to be \"" + product.getExpectedTotal() + "\"");
+        new SoftAssertionsWrapper()
+                .assertEquals(cartScreen.getItemsCount(), product.getExpectedCartText(),
+                        "Cart items label should be \"" + product.getExpectedCartText() + "\"")
+                .assertEquals(cartScreen.getTotalPrice(), product.getExpectedTotal(),
+                        "Cart total should be \"" + product.getExpectedTotal() + "\"")
+                .assertAll();
     }
 }

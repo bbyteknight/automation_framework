@@ -1,6 +1,7 @@
 package drivers;
 
 import config.ConfigReader;
+import exceptions.ConfigurationException;
 import io.appium.java_client.android.AndroidDriver;
 import io.appium.java_client.android.options.UiAutomator2Options;
 import io.appium.java_client.ios.IOSDriver;
@@ -8,11 +9,14 @@ import io.appium.java_client.ios.options.XCUITestOptions;
 import io.appium.java_client.remote.options.BaseOptions;
 import io.appium.java_client.remote.options.SupportsAppOption;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebDriverException;
 import utils.DriverFactory;
+import utils.RetryHelper;
 
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -93,18 +97,23 @@ public class MobileDriverFactory {
         String accessKey = requireCloudCredential("browserstackAccessKey");
         URL hubUrl = toUrl("https://" + username + ":" + accessKey + "@" + BROWSERSTACK_HUB_HOST);
 
+        // Session creation against a remote grid (BrowserStack's hub, or any other cloud/grid)
+        // is a classic infra-flakiness point — a transient connection hiccup shouldn't fail the
+        // whole scenario outright.
         return switch (platform) {
             case "android" -> {
                 UiAutomator2Options options = androidOptions();
                 applyAppCapability(options, "cloud");
                 options.setCapability("bstack:options", browserStackOptions());
-                yield new AndroidDriver(hubUrl, options);
+                yield RetryHelper.retry(() -> new AndroidDriver(hubUrl, options),
+                        3, Duration.ofSeconds(5), WebDriverException.class);
             }
             case "ios" -> {
                 XCUITestOptions options = iosOptions();
                 applyAppCapability(options, "cloud");
                 options.setCapability("bstack:options", browserStackOptions());
-                yield new IOSDriver(hubUrl, options);
+                yield RetryHelper.retry(() -> new IOSDriver(hubUrl, options),
+                        3, Duration.ofSeconds(5), WebDriverException.class);
             }
             default -> throw new RuntimeException("❗ Mobile platform not supported: " + platform);
         };
@@ -179,7 +188,7 @@ public class MobileDriverFactory {
     private static String requireCloudCredential(String key) {
         String value = ConfigReader.get(key, "");
         if (value.isBlank()) {
-            throw new RuntimeException("❗ executionMode=cloud requires the "
+            throw new ConfigurationException("❗ executionMode=cloud requires the "
                     + key.replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase() + " environment variable.");
         }
         return value;

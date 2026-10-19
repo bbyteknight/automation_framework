@@ -1,10 +1,14 @@
 package drivers;
 
 import config.ConfigReader;
+import exceptions.ConfigurationException;
+import exceptions.FrameworkException;
 import io.restassured.RestAssured;
 import io.restassured.response.Response;
+import utils.RetryHelper;
 
 import java.io.File;
+import java.time.Duration;
 
 /**
  * Uploads a local .apk/.ipa to BrowserStack App Automate so it can be referenced by the
@@ -32,23 +36,27 @@ public class CloudAppUploader {
 
         File appFile = new File(localAppPath);
         if (!appFile.isFile()) {
-            throw new RuntimeException("❗ App file not found for BrowserStack upload: " + localAppPath);
+            throw new FrameworkException("❗ App file not found for BrowserStack upload: " + localAppPath);
         }
 
-        Response response = RestAssured.given()
-                .auth().preemptive().basic(username, accessKey)
-                .multiPart("file", appFile)
-                .when()
-                .post(UPLOAD_URL);
+        // Transient network blips against BrowserStack's upload endpoint are infra-level
+        // flakiness, not a problem with the app file — worth a couple of retries before giving up.
+        Response response = RetryHelper.retry(
+                () -> RestAssured.given()
+                        .auth().preemptive().basic(username, accessKey)
+                        .multiPart("file", appFile)
+                        .when()
+                        .post(UPLOAD_URL),
+                3, Duration.ofSeconds(2));
 
         if (response.statusCode() != 200) {
-            throw new RuntimeException("❗ BrowserStack app upload failed (HTTP " + response.statusCode()
+            throw new FrameworkException("❗ BrowserStack app upload failed (HTTP " + response.statusCode()
                     + "): " + response.getBody().asString());
         }
 
         String appUrl = response.jsonPath().getString("app_url");
         if (appUrl == null || appUrl.isBlank()) {
-            throw new RuntimeException("❗ BrowserStack app upload response missing app_url: "
+            throw new FrameworkException("❗ BrowserStack app upload response missing app_url: "
                     + response.getBody().asString());
         }
         return appUrl;
@@ -57,7 +65,7 @@ public class CloudAppUploader {
     private static String requireCredential(String key) {
         String value = ConfigReader.get(key, "");
         if (value.isBlank()) {
-            throw new RuntimeException("❗ Missing BrowserStack credential \"" + key + "\" — set it via the "
+            throw new ConfigurationException("❗ Missing BrowserStack credential \"" + key + "\" — set it via the "
                     + key.replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase() + " environment variable.");
         }
         return value;

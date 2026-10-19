@@ -1,5 +1,6 @@
 package config;
 
+import exceptions.ConfigurationException;
 import io.github.cdimascio.dotenv.Dotenv;
 
 import java.io.IOException;
@@ -38,12 +39,12 @@ public class ConfigReader {
 
         try (InputStream is = ConfigReader.class.getClassLoader().getResourceAsStream(resourcePath)) {
             if (is == null) {
-                throw new RuntimeException("❗ Config file not found on classpath: " + resourcePath);
+                throw new ConfigurationException("❗ Config file not found on classpath: " + resourcePath);
             }
             properties.load(is);
             System.out.println("✅ Loaded configuration for environment [" + env + "] from " + resourcePath);
         } catch (IOException e) {
-            throw new RuntimeException("❌ Failed to load " + resourcePath + ": " + e.getMessage(), e);
+            throw new ConfigurationException("❌ Failed to load " + resourcePath + ": " + e.getMessage(), e);
         }
     }
 
@@ -91,7 +92,7 @@ public class ConfigReader {
             return defaultValue;
         }
 
-        throw new RuntimeException("❗ Property not found via system property, env variable, .env file, config file, or default: " + key);
+        throw new ConfigurationException("❗ Property not found via system property, env variable, .env file, config file, or default: " + key);
     }
 
     private static String resolveEnv() {
