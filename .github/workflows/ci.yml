@@ -33,10 +33,11 @@ on:
     branches: [develop, main]
   pull_request:
     branches: [develop, main]
-  schedule:
-    # Nightly full cross-browser run. Mobile (@android/@ios) stays excluded —
-    # there's no Appium server/device on this runner yet, see platform input.
-    - cron: "0 2 * * *"
+  # Nightly full cross-browser run — disabled for now, uncomment to re-enable.
+  # Mobile (@android/@ios) stays excluded regardless — there's no Appium
+  # server/device on this runner yet, see the platform input.
+  # schedule:
+  #   - cron: "0 2 * * *"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -194,7 +195,10 @@ jobs:
           echo "Quality gate PASSED."
 
       - name: Send email notification
-        if: always()
+        # Disabled for now — flip to `if: always()` once SMTP secrets
+        # (SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD,
+        # NOTIFY_EMAIL_TO) are provisioned.
+        if: false
         continue-on-error: true
         uses: dawidd6/action-send-mail@v3
         with:
