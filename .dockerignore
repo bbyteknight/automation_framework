@@ -1,0 +1,12 @@
+target/
+test-output/
+.git/
+.github/
+.idea/
+.vscode/
+.claude/
+*.iml
+.env
+.env.*
+!.env.example
+node_modules/

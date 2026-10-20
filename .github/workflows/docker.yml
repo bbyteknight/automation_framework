@@ -1,0 +1,39 @@
+name: Docker - Build & Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop, main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - pom.xml
+      - .github/workflows/docker.yml
+
+jobs:
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t automation-framework:ci .
+
+      - name: Run smoke suite inside the container
+        run: |
+          mkdir -p docker-reports
+          docker run --rm \
+            -e LOGIN_USERNAME="${{ secrets.LOGIN_USERNAME }}" \
+            -e LOGIN_PASSWORD="${{ secrets.LOGIN_PASSWORD }}" \
+            -v "$PWD/docker-reports:/app/target/cucumber-reports" \
+            automation-framework:ci test -Psmoke -Dheadless=true
+
+      - name: Upload containerized run's reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-smoke-reports
+          path: docker-reports
+          retention-days: 7
+          if-no-files-found: ignore

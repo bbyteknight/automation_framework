@@ -91,6 +91,9 @@ public class DriverFactory {
     private static ChromeOptions chromeOptions(boolean headless) {
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--start-maximized");
+        // Safe on bare metal too; required in containers, where /dev/shm is
+        // small by default and chrome otherwise often crashes mid-run.
+        options.addArguments("--disable-dev-shm-usage");
         if (headless) {
             options.addArguments("--headless=new");
         }
@@ -109,6 +112,7 @@ public class DriverFactory {
     private static EdgeOptions edgeOptions(boolean headless) {
         EdgeOptions options = new EdgeOptions();
         options.addArguments("--start-maximized");
+        options.addArguments("--disable-dev-shm-usage");
         if (headless) {
             options.addArguments("--headless=new");
         }

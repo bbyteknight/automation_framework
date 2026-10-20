@@ -81,3 +81,37 @@ mvn exec:exec@allure-serve    # local preview server
 `LOGIN_USERNAME`/`LOGIN_PASSWORD`/`API_TOKEN`/etc. are never passed via
 `-D` — see [`SECRETS.md`](SECRETS.md) for how those are provisioned
 (env vars, `.env`, or CI secrets).
+
+## Running in Docker
+
+The `Dockerfile` bundles JDK 21, Maven, and headless Chrome, so a run inside
+the container needs nothing installed on the host beyond Docker itself —
+same environment locally and in CI.
+
+```bash
+# Build once (Maven dependencies are baked into their own cached layer —
+# only re-downloaded when pom.xml changes)
+docker build -t automation-framework .
+
+# Run the default suite; CMD is `test`, so this is `mvn test` inside the container
+docker run --rm automation-framework
+
+# Any CLI flag from the table above works the same way, appended after the image name
+docker run --rm automation-framework test -Psmoke -Dbrowser=chrome -Dheadless=true
+
+# Mount target/ so reports survive after the container exits
+docker run --rm -v "$(pwd)/target:/app/target" automation-framework test -Papi
+
+# Pass secrets as env vars (never bake them into the image)
+docker run --rm \
+  -e LOGIN_USERNAME="$LOGIN_USERNAME" \
+  -e LOGIN_PASSWORD="$LOGIN_PASSWORD" \
+  -v "$(pwd)/target:/app/target" \
+  automation-framework test -Psmoke
+```
+
+Only Chrome is bundled today — `-Pmobile` and `-Dbrowser=firefox/edge`
+aren't usable inside this image yet (no Appium server/device, and no
+Firefox/Edge binary installed). `.github/workflows/docker.yml` builds the
+image and runs the `@smoke` suite inside a container on every change to
+`Dockerfile`/`pom.xml`, as a reproducibility check.
