@@ -54,6 +54,11 @@ mvn test -Dcucumber.filter.tags="@web and @regression and not @flaky"
 mvn test -Dcucumber.filter.tags="not @wip"
 ```
 
+Maven profiles (`-Psmoke`, `-Pregression`, `-Papi`, `-Pweb`, `-Pmobile`) wrap
+the most common expressions above as shortcuts — see
+[`README.md`](README.md#running-the-suite) for the full CLI reference
+(env, browser, headless, threads, profiles).
+
 ## Gherkin writing rules
 
 1. **Declarative, not imperative.** Describe *what* the user does, not *how* the UI does it.

@@ -32,7 +32,15 @@
         <log4j2.version>2.24.1</log4j2.version>
         <parallel.mode>methods</parallel.mode>
         <thread.count>4</thread.count>
-        <suite.file>src/testng.xml</suite.file>
+        <!-- Points at the FILTERED copy (see testResources below), not src/testng.xml directly,
+             so parallel.mode/thread.count placeholders inside it get resolved from these
+             properties — and therefore from -D overrides — before Surefire reads it. -->
+        <suite.file>target/test-classes/testng.xml</suite.file>
+        <!-- Default matches the previous @CucumberOptions(tags = "@web") annotation default on
+             CucumberTestRunner, so a bare `mvn test` behaves exactly as before. Overridden by the
+             smoke/regression/api/web/mobile profiles below, or directly via
+             -Dcucumber.filter.tags="..." (takes precedence over any active profile). -->
+        <cucumber.filter.tags>@web</cucumber.filter.tags>
         <cucumber.version>7.20.1</cucumber.version>
         <cucumber-reporting.version>5.8.1</cucumber-reporting.version>
         <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
@@ -165,6 +173,29 @@
     </dependencies>
 
     <build>
+        <testResources>
+            <!-- Default test resources, unfiltered (feature files, JSON test data, config
+                 properties) — re-declared explicitly because adding any <testResources> below
+                 replaces Maven's implicit default rather than adding to it. -->
+            <testResource>
+                <directory>src/test/resources</directory>
+                <filtering>false</filtering>
+            </testResource>
+            <!-- Copies testng.xml/testng-rerun.xml into target/test-classes with their
+                 ${parallel.mode}/${thread.count} placeholders resolved, so -Dparallel.mode/
+                 -Dthread.count actually take effect (TestNG reads its own suite XML's
+                 parallel/thread-count attributes verbatim, ignoring Surefire's <parallel>/
+                 <threadCount> config, whenever a suiteXmlFile is supplied). -->
+            <testResource>
+                <directory>src</directory>
+                <includes>
+                    <include>testng.xml</include>
+                    <include>testng-rerun.xml</include>
+                </includes>
+                <filtering>true</filtering>
+                <targetPath>.</targetPath>
+            </testResource>
+        </testResources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -218,6 +249,12 @@
                          failed scenarios. The real pass/fail gate moves to the report-merge
                          step (maven-cucumber-reporting, checkBuildResult) below. -->
                     <testFailureIgnore>true</testFailureIgnore>
+                    <!-- Forwards the resolved cucumber.filter.tags Maven property (profile
+                         default or -D override) as an actual JVM system property in the forked
+                         test JVM, which is what cucumber-testng reads at runtime. -->
+                    <systemPropertyVariables>
+                        <cucumber.filter.tags>${cucumber.filter.tags}</cucumber.filter.tags>
+                    </systemPropertyVariables>
                 </configuration>
                 <dependencies>
                     <dependency>
@@ -301,4 +338,42 @@
             </plugin>
         </plugins>
     </build>
+
+    <!-- Shortcuts for the platform/suite scopes documented in GHERKIN_GUIDE.md and README.md.
+         Each just sets cucumber.filter.tags to the matching expression; -Dcucumber.filter.tags=
+         on the command line still overrides whichever profile (or none) is active. -->
+    <profiles>
+        <profile>
+            <id>smoke</id>
+            <properties>
+                <cucumber.filter.tags>@smoke</cucumber.filter.tags>
+            </properties>
+        </profile>
+        <profile>
+            <id>regression</id>
+            <properties>
+                <cucumber.filter.tags>not @wip</cucumber.filter.tags>
+            </properties>
+        </profile>
+        <profile>
+            <id>api</id>
+            <properties>
+                <cucumber.filter.tags>@api</cucumber.filter.tags>
+            </properties>
+        </profile>
+        <profile>
+            <id>web</id>
+            <properties>
+                <cucumber.filter.tags>@web</cucumber.filter.tags>
+            </properties>
+        </profile>
+        <profile>
+            <id>mobile</id>
+            <properties>
+                <!-- Needs an Appium server + device/emulator; not available on the current
+                     CI runner (see ci.yml's platform input). -->
+                <cucumber.filter.tags>@android or @ios</cucumber.filter.tags>
+            </properties>
+        </profile>
+    </profiles>
 </project>

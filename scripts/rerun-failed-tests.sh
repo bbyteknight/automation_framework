@@ -20,7 +20,7 @@ FINAL_JSON="$REPORTS_DIR/run1.json"
 
 if [ -s "$RERUN_FILE" ]; then
     echo "== Run 2: rerunning failed scenarios listed in $RERUN_FILE =="
-    mvn test -Dsuite.file=src/testng-rerun.xml "$@"
+    mvn test -Dsuite.file=target/test-classes/testng-rerun.xml "$@"
     FINAL_JSON="$REPORTS_DIR/run2.json"
 else
     echo "== No failures on run 1 — skipping rerun =="

@@ -14,8 +14,10 @@ import io.cucumber.testng.CucumberOptions;
                 "io.qameta.allure.cucumber7jvm.AllureCucumber7Jvm"
         },
         monochrome = true,
-        // CI default: skip work-in-progress scenarios. Override with
-        // -Dcucumber.filter.tags="..." (see GHERKIN_GUIDE.md) to run a different subset.
+        // Fallback only — pom.xml's systemPropertyVariables always sets the
+        // cucumber.filter.tags JVM property (from the active Maven profile, or
+        // "@web" by default), which overrides this attribute on every run.
+        // See README.md for the full CLI/profile reference.
         tags = "@web"
 )
 public class CucumberTestRunner extends AbstractTestNGCucumberTests {
