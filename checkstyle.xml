@@ -4,10 +4,11 @@
         "https://checkstyle.org/dtds/configuration_1_3.dtd">
 
 <!--
-  Minimal, targeted ruleset: bans Thread.sleep() across the codebase.
-  Explicit waits (BasePage/WaitUtils: waitForVisibility/waitForClickability/
-  waitForInvisibility) replace it. Not a general style ruleset — add rules
-  here deliberately, not by default.
+  Targeted ruleset, not a full style guide: a handful of checks chosen
+  because they catch real maintainability smells and (verified against this
+  codebase before being added) don't need touching existing code. Add rules
+  here deliberately, one at a time, re-running `mvn checkstyle:check` to
+  confirm they don't need a mass cleanup before making them build-breaking.
 -->
 <module name="Checker">
     <module name="TreeWalker">
@@ -17,5 +18,20 @@
                       value="Thread.sleep() is banned — use an explicit wait (BasePage/WaitUtils) instead of a fixed sleep."/>
             <property name="ignoreComments" value="true"/>
         </module>
+        <module name="UnusedImports"/>
+        <module name="RedundantImport"/>
+        <module name="EqualsHashCode"/>
+        <module name="EmptyCatchBlock"/>
+        <module name="EmptyBlock"/>
+        <module name="SimplifyBooleanExpression"/>
+        <module name="SimplifyBooleanReturn"/>
+        <module name="NeedBraces"/>
+        <module name="WhitespaceAround"/>
+        <module name="MethodLength">
+            <property name="max" value="120"/>
+        </module>
+    </module>
+    <module name="LineLength">
+        <property name="max" value="160"/>
     </module>
 </module>

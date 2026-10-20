@@ -46,6 +46,14 @@
         <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
         <allure.version>2.35.5</allure.version>
         <exec-maven-plugin.version>3.6.4</exec-maven-plugin.version>
+        <sonar-maven-plugin.version>4.0.0.4121</sonar-maven-plugin.version>
+        <!-- SonarCloud project coordinates (free for public repos). These match
+             SonarCloud's default naming when importing a GitHub repo as a new
+             project — confirm they're correct once the project exists there,
+             and set the SONAR_TOKEN repo secret; see README.md "Code quality". -->
+        <sonar.projectKey>bbyteknight_automation_framework</sonar.projectKey>
+        <sonar.organization>bbyteknight</sonar.organization>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
     </properties>
 
     <dependencies>
@@ -335,6 +343,15 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <!-- Not bound to a lifecycle phase — run explicitly via `mvn sonar:sonar`
+                 (CI does this after `mvn compile` so Sonar can analyze real bytecode,
+                 without re-running the test suite a second time). Needs SONAR_TOKEN
+                 (repo secret, from sonarcloud.io) to actually submit an analysis. -->
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>${sonar-maven-plugin.version}</version>
             </plugin>
         </plugins>
     </build>

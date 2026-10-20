@@ -115,3 +115,28 @@ aren't usable inside this image yet (no Appium server/device, and no
 Firefox/Edge binary installed). `.github/workflows/docker.yml` builds the
 image and runs the `@smoke` suite inside a container on every change to
 `Dockerfile`/`pom.xml`, as a reproducibility check.
+
+## Code quality
+
+- **Checkstyle** (`checkstyle.xml`) runs on every `mvn compile`/`test`
+  (bound to the `validate` phase) and fails the build on violations —
+  currently the `Thread.sleep()` ban plus a small set of maintainability
+  checks (unused/redundant imports, equals/hashcode, empty blocks, line
+  length, method length). Run it standalone with `mvn checkstyle:check`.
+- **SonarCloud** static analysis runs in CI (`sonar` job in
+  `.github/workflows/ci.yml`, `mvn compile sonar:sonar`) but needs one-time
+  setup that only a repo admin can do:
+  1. Sign in to [sonarcloud.io](https://sonarcloud.io) with the GitHub org/account
+     and import this repository as a new project.
+  2. Confirm the generated project key/organization match `pom.xml`'s
+     `sonar.projectKey`/`sonar.organization` (currently
+     `bbyteknight_automation_framework` / `bbyteknight`) — update `pom.xml`
+     if SonarCloud picked different values.
+  3. Generate a token (My Account → Security) and add it as the `SONAR_TOKEN`
+     repo secret.
+
+  Until `SONAR_TOKEN` exists, the `sonar` job step fails harmlessly
+  (`continue-on-error: true`) without blocking the pipeline.
+- **Dependabot** (`.github/dependabot.yml`) opens weekly PRs for outdated
+  Maven dependencies and GitHub Actions versions — no setup needed, it's
+  enabled automatically once the file exists on the default branch.
