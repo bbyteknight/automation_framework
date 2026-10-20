@@ -27,7 +27,7 @@ to spin up. Never combine two platform tags on the same scenario (e.g.
 | `@smoke` | Small, fast, critical-path set — run on every PR |
 | `@regression` | Full coverage — run on a schedule / before release |
 | `@wip` | Work in progress — excluded from CI by default |
-| `@flaky` | Known-unstable — excluded from the pass/fail gate, tracked for fixing |
+| `@flaky` | Known-unstable — excluded from the pass/fail gate, tracked for fixing (see [`FLAKY_TESTS.md`](FLAKY_TESTS.md)) |
 
 Example:
 

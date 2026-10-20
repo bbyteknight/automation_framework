@@ -1,8 +1,9 @@
 # Automation Framework
 
 Selenium/Appium/REST Assured automation driven by Cucumber + TestNG. See
-also [`GHERKIN_GUIDE.md`](GHERKIN_GUIDE.md) for tagging/writing conventions
-and [`SECRETS.md`](SECRETS.md) for how credentials are resolved.
+also [`GHERKIN_GUIDE.md`](GHERKIN_GUIDE.md) for tagging/writing conventions,
+[`SECRETS.md`](SECRETS.md) for how credentials are resolved, and
+[`FLAKY_TESTS.md`](FLAKY_TESTS.md) for the flaky-test quarantine process.
 
 ## Running the suite
 

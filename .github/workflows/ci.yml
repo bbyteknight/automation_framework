@@ -119,6 +119,20 @@ jobs:
           echo "Resolved tag filter: $FILTER"
           ./scripts/rerun-failed-tests.sh -Dcucumber.filter.tags="$FILTER"
 
+      - name: Download previous Allure history (for trend graphs)
+        # The currently-published GitHub Pages report is the only place this
+        # history persists between runs (no separate artifact store for it).
+        # Best-effort: the very first run (or the firefox/edge nightly legs,
+        # which don't publish to Pages) has nothing to fetch yet — that's fine,
+        # Allure just starts a fresh trend from this run.
+        if: always() && matrix.browser == 'chrome'
+        run: |
+          mkdir -p target/allure-results/history
+          for f in history.json history-trend.json categories-trend.json duration-trend.json retry-trend.json; do
+            curl -fsSL "https://bbyteknight.github.io/automation_framework/history/$f" \
+              -o "target/allure-results/history/$f" || true
+          done
+
       - name: Generate Allure report
         if: always()
         run: mvn -B -ntp exec:exec@allure-report
@@ -174,15 +188,26 @@ jobs:
             exit 1
           fi
 
-          TOTAL=$(jq '[.[] | .elements[]? | select(.type == "scenario")] | length' "$JSON")
-          FAILED=$(jq '[.[] | .elements[]? | select(.type == "scenario") | select([.steps[]?.result.status] | index("failed"))] | length' "$JSON")
+          # @flaky-tagged scenarios are quarantined: they still run (so Allure
+          # keeps tracking their trend), but don't count toward the pass-rate
+          # gate. @critical is checked across ALL scenarios regardless of
+          # @flaky — a scenario should never be both; if one is, this gate is
+          # the forcing function to resolve that contradiction rather than
+          # silently letting it slide.
+          TOTAL=$(jq '[.[] | .elements[]? | select(.type == "scenario") | select([.tags[]?.name] | index("@flaky") | not)] | length' "$JSON")
+          FAILED=$(jq '[.[] | .elements[]? | select(.type == "scenario") | select([.tags[]?.name] | index("@flaky") | not) | select([.steps[]?.result.status] | index("failed"))] | length' "$JSON")
+          FLAKY_FAILED=$(jq '[.[] | .elements[]? | select(.type == "scenario") | select([.tags[]?.name] | index("@flaky")) | select([.steps[]?.result.status] | index("failed"))] | length' "$JSON")
           CRITICAL_FAILED=$(jq '[.[] | .elements[]? | select(.type == "scenario") | select(.tags[]?.name == "@critical") | select([.steps[]?.result.status] | index("failed"))] | length' "$JSON")
           PASSED=$((TOTAL - FAILED))
           PASS_RATE=$(( TOTAL > 0 ? PASSED * 100 / TOTAL : 0 ))
 
-          SUMMARY="${PASSED}/${TOTAL} scenarios passed (${PASS_RATE}%), ${CRITICAL_FAILED} @critical failure(s)"
+          SUMMARY="${PASSED}/${TOTAL} scenarios passed (${PASS_RATE}%), ${CRITICAL_FAILED} @critical failure(s), ${FLAKY_FAILED} quarantined @flaky failure(s)"
           echo "$SUMMARY"
           echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
+
+          if [ "$FLAKY_FAILED" -gt 0 ]; then
+            echo "NOTE: $FLAKY_FAILED quarantined @flaky scenario(s) failed — not blocking, but flag for the flaky-test review (see FLAKY_TESTS.md)."
+          fi
 
           if [ "$CRITICAL_FAILED" -gt 0 ]; then
             echo "Quality gate FAILED: one or more @critical scenarios failed."
