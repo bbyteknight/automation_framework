@@ -1,7 +1,11 @@
 # Automation Framework
 
-Selenium/Appium/REST Assured automation driven by Cucumber + TestNG. See
-also [`GHERKIN_GUIDE.md`](GHERKIN_GUIDE.md) for tagging/writing conventions,
+Selenium/Appium/REST Assured automation driven by Cucumber + TestNG.
+
+New to this repo? Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) —
+prerequisites, setup, running on a Grid/cloud, the full config-key
+reference, and how to add a page/screen/API client/step. See also
+[`GHERKIN_GUIDE.md`](GHERKIN_GUIDE.md) for tagging/writing conventions,
 [`SECRETS.md`](SECRETS.md) for how credentials are resolved, and
 [`FLAKY_TESTS.md`](FLAKY_TESTS.md) for the flaky-test quarantine process.
 
