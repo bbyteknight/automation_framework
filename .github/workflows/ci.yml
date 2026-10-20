@@ -25,8 +25,18 @@ on:
         default: chrome
         type: choice
         options: [chrome, firefox, edge]
+      min_pass_rate:
+        description: Quality gate minimum pass rate percentage
+        required: false
+        default: "95"
   push:
     branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  schedule:
+    # Nightly full cross-browser run. Mobile (@android/@ios) stays excluded —
+    # there's no Appium server/device on this runner yet, see platform input.
+    - cron: "0 2 * * *"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -38,9 +48,15 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Cross-browser only on the nightly schedule; every other trigger
+        # stays single-browser (chrome) to keep PR/push feedback fast.
+        browser: ${{ github.event_name == 'schedule' && fromJson('["chrome","firefox","edge"]') || fromJson('["chrome"]') }}
     env:
       ENV: ${{ inputs.env || 'dev' }}
-      BROWSER: ${{ inputs.browser || 'chrome' }}
+      BROWSER: ${{ inputs.browser || matrix.browser }}
       HEADLESS: "true"
       EXECUTION_MODE: local
       # Only LOGIN_USERNAME/LOGIN_PASSWORD are populated as repo secrets today.
@@ -79,6 +95,7 @@ jobs:
         env:
           PLATFORM: ${{ inputs.platform || 'all' }}
           EXTRA_TAGS: ${{ inputs.tags }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           chmod +x scripts/rerun-failed-tests.sh
           case "$PLATFORM" in
@@ -88,11 +105,16 @@ jobs:
             ios) PLATFORM_TAGS="@ios" ;;
             *) PLATFORM_TAGS="not @android and not @ios" ;;
           esac
+
           if [ -n "$EXTRA_TAGS" ]; then
             FILTER="($PLATFORM_TAGS) and ($EXTRA_TAGS)"
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
+            # PRs only need the fast smoke + API coverage, not the full suite.
+            FILTER="($PLATFORM_TAGS) and (@smoke or @api)"
           else
             FILTER="$PLATFORM_TAGS"
           fi
+
           echo "Resolved tag filter: $FILTER"
           ./scripts/rerun-failed-tests.sh -Dcucumber.filter.tags="$FILTER"
 
@@ -104,12 +126,15 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: allure-report
+          name: allure-report-${{ matrix.browser }}
           path: target/allure-report
           retention-days: 30
 
       - name: Upload Allure report for GitHub Pages
-        if: always()
+        # Pages only accepts one artifact per run; the chrome leg (always
+        # present) is the canonical one, so skip this on the other
+        # nightly cross-browser matrix legs to avoid an artifact-name clash.
+        if: always() && matrix.browser == 'chrome'
         uses: actions/upload-pages-artifact@v3
         with:
           path: target/allure-report
@@ -118,7 +143,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cucumber-report
+          name: cucumber-report-${{ matrix.browser }}
           path: target/cucumber-reports
           retention-days: 30
 
@@ -126,7 +151,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: failure-screenshots
+          name: failure-screenshots-${{ matrix.browser }}
           path: test-output/screenshots
           retention-days: 30
           if-no-files-found: ignore
@@ -135,9 +160,58 @@ jobs:
         if: always()
         run: echo "Ephemeral runner — no persistent infrastructure to tear down."
 
-      - name: Fail job if tests failed
-        if: steps.run_tests.outcome == 'failure'
-        run: exit 1
+      - name: Quality gate (pass-rate threshold + critical-tag failures)
+        id: quality_gate
+        if: always()
+        env:
+          MIN_PASS_RATE: ${{ inputs.min_pass_rate || '95' }}
+        run: |
+          JSON=target/cucumber-reports/run2.json
+          if [ ! -f "$JSON" ]; then
+            echo "No report JSON found — treating as a failure."
+            echo "summary=No report generated." >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          TOTAL=$(jq '[.[] | .elements[]? | select(.type == "scenario")] | length' "$JSON")
+          FAILED=$(jq '[.[] | .elements[]? | select(.type == "scenario") | select([.steps[]?.result.status] | index("failed"))] | length' "$JSON")
+          CRITICAL_FAILED=$(jq '[.[] | .elements[]? | select(.type == "scenario") | select(.tags[]?.name == "@critical") | select([.steps[]?.result.status] | index("failed"))] | length' "$JSON")
+          PASSED=$((TOTAL - FAILED))
+          PASS_RATE=$(( TOTAL > 0 ? PASSED * 100 / TOTAL : 0 ))
+
+          SUMMARY="${PASSED}/${TOTAL} scenarios passed (${PASS_RATE}%), ${CRITICAL_FAILED} @critical failure(s)"
+          echo "$SUMMARY"
+          echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
+
+          if [ "$CRITICAL_FAILED" -gt 0 ]; then
+            echo "Quality gate FAILED: one or more @critical scenarios failed."
+            exit 1
+          fi
+          if [ "$PASS_RATE" -lt "$MIN_PASS_RATE" ]; then
+            echo "Quality gate FAILED: pass rate ${PASS_RATE}% is below threshold ${MIN_PASS_RATE}%."
+            exit 1
+          fi
+          echo "Quality gate PASSED."
+
+      - name: Send email notification
+        if: always()
+        continue-on-error: true
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "CI ${{ job.status }}: ${{ github.repository }} (${{ github.event_name }})"
+          to: ${{ secrets.NOTIFY_EMAIL_TO }}
+          from: Automation Framework CI
+          body: |
+            ${{ steps.quality_gate.outputs.summary }}
+
+            Branch/ref: ${{ github.ref }}
+            Triggered by: ${{ github.event_name }}
+            Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Allure report (GitHub Pages): https://bbyteknight.github.io/automation_framework/
 
   publish-report:
     needs: test
