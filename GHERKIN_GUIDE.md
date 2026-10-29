@@ -1,7 +1,7 @@
 # Tagging Strategy & Gherkin Style Guide
 
 Standardizes how `.feature` files are written and how scenarios are tagged
-and filtered across Web, API, and Mobile suites.
+and filtered across Web, API, Mobile, and Desktop suites.
 
 ## Tags
 
@@ -14,7 +14,8 @@ Every scenario carries **exactly one platform tag** and **zero or more suite tag
 | `@web` | Browser/Selenium scenario | `Hooks.setUpWeb()` starts/quits the browser |
 | `@android` | Android/Appium scenario | `Hooks.setUpMobile()` starts an Android driver |
 | `@ios` | iOS/Appium scenario | `Hooks.setUpMobile()` starts an iOS driver |
-| `@api` | API-only scenario (REST Assured) | No driver is started — `@Before`/`@After` are scoped to `@web`/`@android`/`@ios` only |
+| `@desktop` | Windows desktop/Appium NovaWindows scenario | `Hooks.setUpDesktop()` starts a Windows driver (needs `-Dplatform=windows`, see `DESKTOP_AUTOMATION_SETUP.md`) |
+| `@api` | API-only scenario (REST Assured) | No driver is started — `@Before`/`@After` are scoped to `@web`/`@android`/`@ios`/`@desktop` only |
 
 A scenario must always carry one of these so hooks know what (if anything)
 to spin up. Never combine two platform tags on the same scenario (e.g.

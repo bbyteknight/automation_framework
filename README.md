@@ -32,9 +32,11 @@ directly into the Surefire-forked test JVM (`cucumber.filter.tags`,
 `target/test-classes/testng.xml` before TestNG reads it, see `pom.xml`'s
 `testResources`).
 
-Platform (web/api/android/ios) is selected via Cucumber tags, not a
+Platform (web/api/android/ios/desktop) is selected via Cucumber tags, not a
 separate flag — use the Maven profiles below or `-Dcucumber.filter.tags`
-directly (e.g. `-Dcucumber.filter.tags="@android"`).
+directly (e.g. `-Dcucumber.filter.tags="@android"`). `-Dplatform` is a
+separate switch used only by `@desktop` scenarios, to pick which desktop OS
+driver `DriverFactory.initDesktopDriver()` builds (only `windows` today).
 
 ### Maven profiles
 
@@ -48,6 +50,7 @@ sets `cucumber.filter.tags`:
 | `-Papi` | `@api` | REST Assured only, no browser/driver needed |
 | `-Pweb` | `@web` | Browser/Selenium only (same as the default) |
 | `-Pmobile` | `@android or @ios` | Needs a running Appium server + device/emulator — not available on the current CI runner |
+| `-Pdesktop` | `@desktop` | Needs a Windows host + Appium server + NovaWindows driver, and `-Dplatform=windows` (see `DESKTOP_AUTOMATION_SETUP.md`) — not available on the current CI runner |
 
 A directly-passed `-Dcucumber.filter.tags=...` always wins over whichever
 profile (or none) is active.
@@ -69,6 +72,9 @@ mvn test -Pregression -Dbrowser=firefox -Dheadless=true -Dthread.count=8 -Dparal
 
 # Mobile scenarios (requires Appium + device/emulator already running)
 mvn test -Pmobile
+
+# Desktop scenarios (requires Appium + NovaWindows driver, Windows host)
+mvn test -Pdesktop -Dplatform=windows
 
 # Fine-grained tag expression, bypassing any profile
 mvn test -Dcucumber.filter.tags="@web and @smoke and not @flaky"

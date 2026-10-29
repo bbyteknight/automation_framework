@@ -24,6 +24,8 @@ reference, and how to add a new page/screen/API client/step.
   - **Appium + Android SDK/emulator** (or a real device) — only for
     `@android` scenarios; no iOS environment exists on this team yet (see
     "Mobile screens" below)
+  - **Windows host + Appium NovaWindows driver** — only for `@desktop`
+    scenarios; see `DESKTOP_AUTOMATION_SETUP.md`
 
 ## Setup
 
@@ -93,7 +95,11 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR, builds the
 image in `.github/workflows/docker.yml` on Dockerfile/pom.xml changes, and
 publishes the Allure report to GitHub Pages — see `README.md` for the full
 pipeline parameters (`env`/`platform`/`tags`/`browser`/`min_pass_rate`
-`workflow_dispatch` inputs).
+`workflow_dispatch` inputs). A separate `desktop` job runs `@desktop`
+scenarios on a self-hosted Windows runner, manual-only (`workflow_dispatch`
+with `platform: desktop`/`all`) and `continue-on-error: true` until that
+runner is provisioned — see `DESKTOP_AUTOMATION_SETUP.md` ("CI: self-hosted
+Windows runner") for the provisioning checklist.
 
 ## Configuration key reference
 
@@ -106,7 +112,7 @@ equivalent env var is `SCREAMING_SNAKE_CASE` (e.g. `apiClientId` →
 | Key | Used by | Notes |
 |---|---|---|
 | `env` | `TestDataReader`, `AllureReportSetup` | Selects `config/{env}.properties` and `testdata/{env}/...` |
-| `platform` | `AllureReportSetup` | Reported into the Allure environment widget only — doesn't drive driver selection (that's tag-based, see `GHERKIN_GUIDE.md`) |
+| `platform` | `AllureReportSetup`, `DriverFactory.initDesktopDriver` | Reported into the Allure environment widget always; for `@desktop` scenarios it also selects the desktop OS driver (`windows` today) — defaults to `web` in the properties files, so `@desktop` runs need an explicit `-Dplatform=windows` override. Which platform family (web/android/ios/desktop) actually runs is still tag-based, see `GHERKIN_GUIDE.md` |
 | `browser` | `Hooks.setUpWeb`, `DriverFactory` | `chrome`/`firefox`/`edge` |
 | `headless` | `DriverFactory` | `true`/`false` |
 | `executionMode` | `DriverFactory`, `MobileDriverFactory`, `Hooks.tearDownUi`, `AllureReportSetup` | `local` (default) / `grid`/`remote` (web) / `cloud` (BrowserStack, web or mobile) |
@@ -125,6 +131,9 @@ equivalent env var is `SCREAMING_SNAKE_CASE` (e.g. `apiClientId` →
 | `appUrl` | `MobileDriverFactory` | Pre-uploaded cloud app URL (`bs://...`) — skips the upload step if set |
 | `browserstackUsername` / `browserstackAccessKey` | `MobileDriverFactory`, `CloudAppUploader` | **Not** a generic `cloud*` key — BrowserStack-specific; see `SECRETS.md` |
 | `cloudProjectName` / `cloudBuildName` / `cloudSessionName` | `MobileDriverFactory` (`bstack:options`) | Optional BrowserStack dashboard grouping/labels |
+| `desktopAppPath` | `DriverFactory.initDesktopDriver` | `.exe` path or UWP AUMID for `@desktop` scenarios; see `DESKTOP_AUTOMATION_SETUP.md` |
+| `desktopAppArguments` / `desktopAppWorkingDir` | `DriverFactory.initDesktopDriver` | Optional NovaWindows capabilities, blank-skipped |
+| `desktopDelayBeforeClick` / `desktopDelayAfterClick` | `DriverFactory.initDesktopDriver` | Milliseconds; NovaWindows' own documented fix for its PowerShell-backed input occasionally landing before a control has focus — default `150` each |
 | `buildNumber` | `AllureReportSetup` | Defaults to `"local"`; CI should override so Allure's history/trend graphs line up builds correctly |
 | `loginUsername` / `loginPassword` | `tests.LoginTest` (plain TestNG only) | Not used by the Cucumber `LoginSteps` flow, which reads test accounts from `testdata/{env}/users.json` instead |
 
@@ -135,7 +144,7 @@ not-yet-built cross-browser parallel runner), `timeout`/`implicitTimeout`/
 root-level `src/test/resources/config.properties` file (a stale leftover —
 `ConfigReader` only ever loads `config/{env}.properties`, never this file).
 
-For tags (`@web`/`@android`/`@ios`/`@api` platform tags,
+For tags (`@web`/`@android`/`@ios`/`@desktop`/`@api` platform tags,
 `@smoke`/`@regression`/`@wip`/`@flaky` suite tags), see
 [`GHERKIN_GUIDE.md`](GHERKIN_GUIDE.md) — that's the canonical reference,
 not repeated here.
@@ -144,9 +153,10 @@ not repeated here.
 
 | Package | Purpose |
 |---|---|
-| `base` | `BasePage` (web POM base), `BaseScreen` (Appium screen base), `BaseTest` (plain TestNG base) |
+| `base` | `BasePage` (web POM base), `BaseScreen` (mobile Appium screen base), `DesktopBaseScreen` (desktop/NovaWindows screen base), `BaseTest` (plain TestNG base) |
 | `pages` | Web Page Objects, extend `base.BasePage` |
-| `screens` | Mobile Screen Objects, extend `base.BaseScreen` |
+| `screens.mobile` | Mobile Screen Objects, extend `base.BaseScreen` |
+| `screens.desktop` | Desktop Screen Objects, extend `base.DesktopBaseScreen` |
 | `api.clients` | REST Assured clients returning typed POJOs |
 | `api.specs` | Reusable RestAssured request/response spec builders |
 | `api.filters` | `ApiLoggingFilter` — auto-logs every API call to Log4j + Allure |
@@ -193,7 +203,7 @@ Prefer `@FindBy` for elements with a stable `id`/attribute; fall back to a
 
 ### A mobile screen
 
-Add a class under `screens/` extending `base.BaseScreen`. Annotate every
+Add a class under `screens/mobile/` extending `base.BaseScreen`. Annotate every
 field with **both** `@AndroidFindBy` and `@iOSXCUITFindBy` even if you only
 have Android locators verified right now (see `LoginScreen` — its iOS
 locators are explicitly documented as unverified placeholders, since no iOS
@@ -218,6 +228,33 @@ public class CheckoutScreen extends BaseScreen {
 
 Methods that navigate return the next screen object (fluent navigation),
 same idiom as the web pages.
+
+### A desktop screen
+
+Add a class under `screens/desktop/` extending `base.DesktopBaseScreen`.
+There's no Windows-specific `@FindBy` annotation (unlike mobile's
+`@AndroidFindBy`/`@iOSXCUITFindBy`), so locate elements via plain `By`
+fields built from `automationId(...)` instead of annotated `WebElement`
+fields (see `DesktopLoginScreen`):
+
+```java
+public class SettingsScreen extends DesktopBaseScreen {
+    private final By saveButton = automationId("btnSave");
+
+    public SettingsScreen(WebDriver driver) {
+        super(driver);
+    }
+
+    public void save() {
+        click(saveButton);
+    }
+}
+```
+
+Same fluent-navigation idiom as web/mobile. See `DESKTOP_AUTOMATION_SETUP.md`
+for the window-handling/keyboard-shortcut helpers `DesktopBaseScreen`
+provides, and its "Known limitations" section before relying on per-step
+screenshots or rapid click/type sequences.
 
 ### An API client
 
@@ -291,7 +328,7 @@ against a shared sandbox.
 ### Hooks / new platform tags
 
 If you're introducing an entirely new platform (not just a new
-page/screen/client under the existing `@web`/`@android`/`@ios`/`@api`
+page/screen/client under the existing `@web`/`@android`/`@ios`/`@desktop`/`@api`
 tags), you'll need to add `@Before`/`@After` bindings in
 `hooks/Hooks.java` for the new tag, following the existing
 `setUpWeb`/`setUpMobile` pattern — and add the tag to

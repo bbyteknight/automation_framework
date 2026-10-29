@@ -69,9 +69,20 @@ public class Hooks {
         MobileDriverFactory.initDriver(platform);
     }
 
+    @Before("@desktop")
+    public void setUpDesktop() {
+        DriverFactory.initDesktopDriver();
+    }
+
     // Fires after every Gherkin step (pass or fail), not just at scenario end, so the report
     // shows the UI's progression — page load, state right after each click/sendKeys — rather
     // than only a screenshot of the final failure.
+    //
+    // @desktop is deliberately excluded here (unlike @After below): NovaWindows' PowerShell-backed
+    // SendKeys is reproducibly destabilized by a screenshot capture landing between two keyboard
+    // actions (observed as "SendWait ... Access is denied" on the next sendKeys, or a click
+    // silently not registering) — so desktop scenarios only get a screenshot on failure, not after
+    // every step.
     @AfterStep("@web or @android or @ios")
     public void attachStepScreenshot(Scenario scenario) {
         if (DriverFactory.getDriver() != null) {
@@ -80,7 +91,7 @@ public class Hooks {
         }
     }
 
-    @After("@web or @android or @ios")
+    @After("@web or @android or @ios or @desktop")
     public void tearDownUi(Scenario scenario) {
         if (scenario.isFailed() && DriverFactory.getDriver() != null) {
             WebDriver driver = DriverFactory.getDriver();

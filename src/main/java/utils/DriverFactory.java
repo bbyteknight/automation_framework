@@ -1,6 +1,8 @@
 package utils;
 
 import config.ConfigReader;
+import io.appium.java_client.windows.WindowsDriver;
+import io.appium.java_client.windows.options.WindowsOptions;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.MutableCapabilities;
@@ -16,6 +18,7 @@ import org.openqa.selenium.remote.RemoteWebDriver;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
+import java.util.function.Consumer;
 
 /**
  * Thread-safe web driver factory: each thread gets its own WebDriver instance
@@ -32,10 +35,15 @@ import java.net.URL;
  * drivers.MobileDriverFactory registers Appium drivers into this same
  * ThreadLocal via setDriver(), so hooks/steps can use getDriver()/quitDriver()
  * uniformly regardless of platform.
+ *
+ * Desktop (Windows) scenarios are handled directly here via initDesktopDriver(),
+ * using Appium's NovaWindows driver (see DESKTOP_AUTOMATION_SETUP.md for the
+ * one-time Appium/driver install) — same ThreadLocal, same getDriver()/quitDriver().
  */
 public class DriverFactory {
 
     private static final ThreadLocal<WebDriver> driver = new ThreadLocal<>();
+    private static final String LOCAL_APPIUM_URL = "http://127.0.0.1:4723";
 
     public static WebDriver initDriver(String browser) {
         browser = browser.toLowerCase().trim();
@@ -124,6 +132,55 @@ public class DriverFactory {
             return URI.create(url).toURL();
         } catch (IllegalArgumentException | MalformedURLException e) {
             throw new RuntimeException("❗ Invalid grid/cloud URL: " + url, e);
+        }
+    }
+
+    /**
+     * Starts a desktop driver for @desktop scenarios. Only "windows" (Appium's NovaWindows
+     * driver) is supported today; the platform is config-driven (-Dplatform=windows, or
+     * PLATFORM/.env/properties file) rather than hardcoded, so another desktop OS can be
+     * added here later without touching Hooks.
+     *
+     * desktopAppPath accepts anything NovaWindows' "app" capability does: a .exe path for a
+     * classic Win32/WinForms/WPF app, or a UWP AUMID (e.g.
+     * "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App").
+     */
+    public static WebDriver initDesktopDriver() {
+        String platform = ConfigReader.get("platform", "windows").toLowerCase().trim();
+
+        WebDriver desktopDriver = switch (platform) {
+            case "windows" -> createWindowsDriver();
+            default -> throw new RuntimeException("❗ Desktop platform not supported: " + platform);
+        };
+
+        driver.set(desktopDriver);
+        return desktopDriver;
+    }
+
+    private static WebDriver createWindowsDriver() {
+        URL appiumServerUrl = toUrl(ConfigReader.get("appiumServerUrl", LOCAL_APPIUM_URL));
+
+        WindowsOptions options = new WindowsOptions();
+        options.setPlatformName("Windows");
+        options.setAutomationName("NovaWindows");
+        setIfPresent("desktopAppPath", options::setApp);
+        setIfPresent("desktopAppArguments", options::setAppArguments);
+        setIfPresent("desktopAppWorkingDir", options::setAppWorkingDir);
+
+        // NovaWindows' PowerShell-backed automation can otherwise click/type before the target
+        // control has actually taken focus (observed as a click landing but not registering, or
+        // text going to the wrong field) — these are the driver's own documented capabilities
+        // for that, not exposed via a typed WindowsOptions setter in this java-client version.
+        options.setCapability("delayBeforeClick", Integer.parseInt(ConfigReader.get("desktopDelayBeforeClick", "150")));
+        options.setCapability("delayAfterClick", Integer.parseInt(ConfigReader.get("desktopDelayAfterClick", "150")));
+
+        return new WindowsDriver(appiumServerUrl, options);
+    }
+
+    private static void setIfPresent(String configKey, Consumer<String> setter) {
+        String value = ConfigReader.get(configKey, "");
+        if (!value.isBlank()) {
+            setter.accept(value);
         }
     }
 

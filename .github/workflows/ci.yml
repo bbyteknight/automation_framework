@@ -10,11 +10,11 @@ on:
         type: choice
         options: [dev, qa, staging]
       platform:
-        description: Test platform scope (android/ios need an Appium server, not yet available in this CI runner)
+        description: Test platform scope (android/ios need an Appium server, not yet available in this CI runner; desktop needs the self-hosted Windows runner, see the desktop job)
         required: false
         default: all
         type: choice
-        options: [web, api, android, ios, all]
+        options: [web, api, android, ios, desktop, all]
       tags:
         description: Additional Cucumber tag filter, ANDed with the platform scope (optional)
         required: false
@@ -48,6 +48,9 @@ permissions:
 
 jobs:
   test:
+    # Desktop-only manual runs skip this ubuntu job entirely — @desktop scenarios need the
+    # self-hosted Windows runner (see the desktop job below), not this Linux matrix.
+    if: github.event_name != 'workflow_dispatch' || inputs.platform != 'desktop'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -104,7 +107,10 @@ jobs:
             api) PLATFORM_TAGS="@api" ;;
             android) PLATFORM_TAGS="@android" ;;
             ios) PLATFORM_TAGS="@ios" ;;
-            *) PLATFORM_TAGS="not @android and not @ios" ;;
+            # desktop never reaches this ubuntu job (see the job-level `if` above) — kept here
+            # only so an unexpected PLATFORM value doesn't fall through to the "all" case below.
+            desktop) PLATFORM_TAGS="@desktop" ;;
+            *) PLATFORM_TAGS="not @android and not @ios and not @desktop" ;;
           esac
 
           if [ -n "$EXTRA_TAGS" ]; then
@@ -241,6 +247,119 @@ jobs:
             Triggered by: ${{ github.event_name }}
             Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
             Allure report (GitHub Pages): https://bbyteknight.github.io/automation_framework/
+
+  desktop:
+    name: Desktop (Windows / NovaWindows)
+    # Manual-only, same precedent as android/ios: @desktop scenarios drive real Windows UI
+    # Automation, which needs an actual interactive, unlocked desktop session — GitHub-hosted
+    # windows-latest runners execute as a non-interactive service account and can't do this, so
+    # this job targets a self-hosted runner instead. See DESKTOP_AUTOMATION_SETUP.md
+    # ("CI: self-hosted Windows runner") for how that runner is provisioned (auto-logon
+    # interactive session, Appium 3 + NovaWindows driver preinstalled, sample app pre-staged at
+    # DESKTOP_APP_PATH below) and labeled self-hosted/windows/desktop.
+    if: github.event_name == 'workflow_dispatch' && (inputs.platform == 'desktop' || inputs.platform == 'all')
+    runs-on: [self-hosted, windows, desktop]
+    # Best-effort until a runner carrying these labels is actually registered — this definition
+    # documents the intended pipeline shape (see the DoD in DESKTOP_AUTOMATION_SETUP.md) without
+    # blocking the rest of the workflow while that runner is provisioned.
+    continue-on-error: true
+    env:
+      ENV: ${{ inputs.env || 'dev' }}
+      # Pre-staged on the runner during provisioning (same precedent as the mobile emulator's
+      # Sauce Labs demo app, installed manually rather than built by the pipeline) — not part of
+      # this repo. See DESKTOP_AUTOMATION_SETUP.md.
+      DESKTOP_APP_PATH: 'C:\apps\TestLoginApp\TestLoginApp.exe'
+      APPIUM_SERVER_URL: 'http://127.0.0.1:4723'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build
+        run: mvn -B -ntp clean compile test-compile
+
+      - name: Verify Appium + NovaWindows driver are installed
+        shell: pwsh
+        # Provisioning installs these once (see DESKTOP_AUTOMATION_SETUP.md); this just confirms
+        # the runner's image hasn't drifted, it doesn't (re)install on every run.
+        run: |
+          appium -v
+          appium driver list --installed
+
+      - name: Start Appium server (background) and wait for readiness
+        id: start_appium
+        shell: pwsh
+        run: |
+          $proc = Start-Process -FilePath "cmd.exe" `
+            -ArgumentList "/c appium server -p 4723 > appium-server.log 2>&1" `
+            -PassThru -WindowStyle Hidden
+          "APPIUM_PID=$($proc.Id)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+          $ready = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            try {
+              $resp = Invoke-RestMethod -Uri "$env:APPIUM_SERVER_URL/status" -TimeoutSec 2
+              if ($resp.value.ready) { $ready = $true; break }
+            } catch {}
+            Start-Sleep -Seconds 2
+          }
+          if (-not $ready) {
+            Write-Error "Appium server did not become ready within 60s"
+            Get-Content appium-server.log -ErrorAction SilentlyContinue
+            exit 1
+          }
+          Write-Host "Appium server ready at $env:APPIUM_SERVER_URL"
+
+      - name: Test desktop scenarios
+        shell: pwsh
+        run: >
+          mvn -B -ntp test -Pdesktop "-Dplatform=windows"
+          "-DdesktopAppPath=$env:DESKTOP_APP_PATH"
+          "-DappiumServerUrl=$env:APPIUM_SERVER_URL"
+
+      - name: Generate Allure report
+        if: always()
+        shell: pwsh
+        run: mvn -B -ntp exec:exec@allure-report
+
+      - name: Upload Allure report (desktop)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report-desktop
+          path: target/allure-report
+          retention-days: 30
+
+      - name: Upload Cucumber HTML report (desktop)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cucumber-report-desktop
+          path: target/cucumber-reports
+          retention-days: 30
+
+      - name: Upload failure screenshots (desktop)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-screenshots-desktop
+          path: test-output/screenshots
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Stop Appium server
+        if: always()
+        shell: pwsh
+        run: |
+          if ($env:APPIUM_PID) {
+            Stop-Process -Id $env:APPIUM_PID -Force -ErrorAction SilentlyContinue
+          }
 
   publish-report:
     needs: test

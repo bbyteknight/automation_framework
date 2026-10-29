@@ -392,5 +392,15 @@
                 <cucumber.filter.tags>@android or @ios</cucumber.filter.tags>
             </properties>
         </profile>
+        <profile>
+            <id>desktop</id>
+            <properties>
+                <!-- Needs a Windows host + Appium server + NovaWindows driver (see
+                     DESKTOP_AUTOMATION_SETUP.md); also pass -Dplatform=windows since
+                     the dev/qa/staging properties files default platform=web. Not
+                     available on the current CI runner. -->
+                <cucumber.filter.tags>@desktop</cucumber.filter.tags>
+            </properties>
+        </profile>
     </profiles>
 </project>

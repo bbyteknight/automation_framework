@@ -1,4 +1,4 @@
-package screens;
+package screens.mobile;
 
 import base.BaseScreen;
 import io.appium.java_client.pagefactory.AndroidFindBy;
