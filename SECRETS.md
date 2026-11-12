@@ -36,6 +36,9 @@ checking environment variables and `.env`.
 | `MOBILE_PASSWORD` | Mobile — Appium tests | Mobile app login password |
 | `BROWSERSTACK_USERNAME` | Mobile — `MobileDriverFactory`, `CloudAppUploader` (executionMode=cloud) | BrowserStack account username |
 | `BROWSERSTACK_ACCESS_KEY` | Mobile — `MobileDriverFactory`, `CloudAppUploader` (executionMode=cloud) | BrowserStack account access key |
+| `DB_USERNAME` | Database — `db.DbClient` | Database user for the JDBC connection pool |
+| `DB_PASSWORD` | Database — `db.DbClient` | Database password for the JDBC connection pool |
+| `REDIS_PASSWORD` | NoSQL — `db.RedisClient` | Redis `AUTH` password, if the target instance requires one |
 
 ## Local setup
 

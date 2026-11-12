@@ -15,7 +15,7 @@ Every scenario carries **exactly one platform tag** and **zero or more suite tag
 | `@android` | Android/Appium scenario | `Hooks.setUpMobile()` starts an Android driver |
 | `@ios` | iOS/Appium scenario | `Hooks.setUpMobile()` starts an iOS driver |
 | `@desktop` | Windows desktop/Appium NovaWindows scenario | `Hooks.setUpDesktop()` starts a Windows driver (needs `-Dplatform=windows`, see `DESKTOP_AUTOMATION_SETUP.md`) |
-| `@api` | API-only scenario (REST Assured) | No driver is started — `@Before`/`@After` are scoped to `@web`/`@android`/`@ios`/`@desktop` only |
+| `@api` | Backend-only scenario — REST Assured, and/or direct DB/NoSQL validation via `db.*` | No driver is started — `@Before`/`@After` are scoped to `@web`/`@android`/`@ios`/`@desktop` only |
 
 A scenario must always carry one of these so hooks know what (if anything)
 to spin up. Never combine two platform tags on the same scenario (e.g.

@@ -1,8 +1,14 @@
 <!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
 <suite name="Web Suite" parallel="${parallel.mode}" thread-count="${thread.count}">
-    <!-- No suite-wide listeners: TestListener/AllureTestNg are registered via @Listeners on
-         base.BaseTest instead, so they only wrap plain TestNG tests (LoginTest) and never the
-         Cucumber runner below, which already reports through its own Allure Cucumber plugin. -->
+    <!-- TestListener/AllureTestNg are registered via @Listeners on base.BaseTest instead, so they
+         only wrap plain TestNG tests (LoginTest) and never the Cucumber runner below, which
+         already reports through its own Allure Cucumber plugin. db.ContainerDatabaseSuiteListener
+         is the one suite-wide listener: it needs to run once, before every <test> block below
+         (not just one test class), so DB-backed tests under -Ddb=container all see the container
+         before their first query — see its Javadoc. -->
+    <listeners>
+        <listener class-name="db.ContainerDatabaseSuiteListener"/>
+    </listeners>
 
     <test name="Login Test">
         <!-- Run all tests by default. To filter by group/tag, override via CLI:
@@ -10,6 +16,17 @@
              mvn test -Dgroups=regression -DexcludedGroups=smoke -->
         <classes>
             <class name="tests.LoginTest"/>
+        </classes>
+    </test>
+
+    <test name="Database Client Test">
+        <!-- Self-contained (in-memory H2), so it always runs — no dbUrl/credentials needed.
+             ProductionWriteGuardTest is pure logic (no DB connection), included here too.
+             ContainerDatabaseTest skips itself unless run with -Ddb=container. -->
+        <classes>
+            <class name="db.DbClientTest"/>
+            <class name="db.ProductionWriteGuardTest"/>
+            <class name="db.ContainerDatabaseTest"/>
         </classes>
     </test>
 

@@ -3,6 +3,7 @@ package hooks;
 import config.ConfigReader;
 import context.GlobalContext;
 import context.ScenarioContext;
+import db.DbClient;
 import drivers.MobileDriverFactory;
 import io.cucumber.java.After;
 import io.cucumber.java.AfterAll;
@@ -54,7 +55,28 @@ public class Hooks {
     @AfterAll
     public static void globalTeardown() {
         GlobalContext.clear();
-        logger.info("🔚 Global teardown complete — auth token cleared.");
+        warnOnLeftoverSeedData();
+        // Safe even if no scenario ever queried the database — closeAll() no-ops when the
+        // pool was never initialized, so this doesn't force a DB connection on every run.
+        DbClient.closeAll();
+        logger.info("🔚 Global teardown complete — auth token cleared, DB pool closed.");
+    }
+
+    // Final safety net for "scenarios leave no leftover data": if every @seed-orders scenario's
+    // own @After("@seed-orders") cleanup ran (hooks.DbSeedHooks), "orders" is empty by now. A
+    // non-empty table here means a scenario crashed badly enough to skip even that cleanup (e.g.
+    // a JVM-level failure) — surfaced as a loud warning rather than silently left behind.
+    private static void warnOnLeftoverSeedData() {
+        try {
+            int leftover = DbClient.query("SELECT * FROM orders").size();
+            if (leftover > 0) {
+                logger.warn("⚠️ {} leftover row(s) in \"orders\" after the run — a @seed-orders "
+                        + "scenario's cleanup hook may not have run.", leftover);
+            }
+        } catch (RuntimeException e) {
+            // "orders" was never created this run (no @seed-orders scenario executed) — nothing to check.
+            logger.debug("Skipping leftover-seed-data check: {}", e.getMessage());
+        }
     }
 
     @Before("@web")

@@ -25,6 +25,7 @@ tag scope, or thread count.
 | `-Dcucumber.filter.tags` | Cucumber tag expression | `-Dcucumber.filter.tags="@smoke and not @flaky"` | `@web` (or whatever profile is active) |
 | `-Dparallel.mode` | TestNG parallel mode (`methods`/`classes`/`tests`/`instances`) | `-Dparallel.mode=classes` | `methods` |
 | `-Dthread.count` | TestNG thread count | `-Dthread.count=8` | `4` |
+| `-Ddb` | Set to `container` to run `db.*` tests/scenarios against a fresh, isolated Postgres spun up via Testcontainers (`db.ContainerDatabaseSuiteListener`) instead of the shared H2 in-memory default — needs a Docker daemon reachable from the machine running Maven | `-Ddb=container` | unset (H2) |
 
 These all flow through `config.ConfigReader` (`env`/`browser`/`headless`) or
 directly into the Surefire-forked test JVM (`cucumber.filter.tags`,
@@ -78,6 +79,10 @@ mvn test -Pdesktop -Dplatform=windows
 
 # Fine-grained tag expression, bypassing any profile
 mvn test -Dcucumber.filter.tags="@web and @smoke and not @flaky"
+
+# Database suite against a fresh, isolated Postgres container instead of the shared H2 default
+# (needs Docker; CI's ubuntu-latest runner already has it — see the workflow's "db" input)
+mvn test -Pdatabase -Ddb=container
 
 # Run with automatic rerun of failed scenarios once (what CI uses)
 ./scripts/rerun-failed-tests.sh -Dcucumber.filter.tags="@smoke"

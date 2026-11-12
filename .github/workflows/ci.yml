@@ -29,6 +29,12 @@ on:
         description: Quality gate minimum pass rate percentage
         required: false
         default: "95"
+      db:
+        description: "DB target for db.* tests/scenarios: h2 (shared in-memory default) or container (fresh, isolated Postgres via Testcontainers — needs a Docker daemon, which ubuntu-latest already has)"
+        required: false
+        default: h2
+        type: choice
+        options: [h2, container]
   push:
     branches: [develop, main]
   pull_request:
@@ -100,6 +106,7 @@ jobs:
           PLATFORM: ${{ inputs.platform || 'all' }}
           EXTRA_TAGS: ${{ inputs.tags }}
           EVENT_NAME: ${{ github.event_name }}
+          DB_TARGET: ${{ inputs.db || 'h2' }}
         run: |
           chmod +x scripts/rerun-failed-tests.sh
           case "$PLATFORM" in
@@ -122,8 +129,17 @@ jobs:
             FILTER="$PLATFORM_TAGS"
           fi
 
+          # Only forwarded when explicitly requested (manual workflow_dispatch run with
+          # db: container) — db.ContainerDatabaseSuiteListener then spins up a fresh, isolated
+          # Postgres container via Testcontainers instead of the shared H2 in-memory default.
+          # Every other trigger (push/PR) stays on H2 for speed; push/PR can't set this input.
+          DB_ARG=()
+          if [ "$DB_TARGET" = "container" ]; then
+            DB_ARG=(-Ddb=container)
+          fi
+
           echo "Resolved tag filter: $FILTER"
-          ./scripts/rerun-failed-tests.sh -Dcucumber.filter.tags="$FILTER"
+          ./scripts/rerun-failed-tests.sh -Dcucumber.filter.tags="$FILTER" "${DB_ARG[@]}"
 
       - name: Download previous Allure history (for trend graphs)
         # The currently-published GitHub Pages report is the only place this
