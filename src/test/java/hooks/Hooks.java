@@ -17,8 +17,10 @@ import org.openqa.selenium.WebDriver;
 import reporting.AllureReportSetup;
 import testdata.ApiTestDataManager;
 import utils.CloudStatusReporter;
+import utils.DownloadManager;
 import utils.DriverFactory;
 import utils.ScreenshotUtil;
+import utils.ZipExtractionManager;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -29,6 +31,8 @@ public class Hooks {
 
     private final ScenarioContext scenarioContext;
     private final ApiTestDataManager apiTestDataManager = new ApiTestDataManager();
+    private final ZipExtractionManager zipExtractionManager = new ZipExtractionManager();
+    private final DownloadManager downloadManager = new DownloadManager();
 
     public Hooks(ScenarioContext scenarioContext) {
         this.scenarioContext = scenarioContext;
@@ -146,5 +150,21 @@ public class Hooks {
     @After("@api")
     public void cleanupApiTestData() {
         apiTestDataManager.cleanup(scenarioContext);
+    }
+
+    // No tag filter: any scenario on any platform could extract a zip via steps.FileSteps, and
+    // cleanup() is a no-op when nothing was tracked, so this is safe/cheap to run for every
+    // scenario rather than only @api ones.
+    @After
+    public void cleanupZipExtractions() {
+        zipExtractionManager.cleanup(scenarioContext);
+    }
+
+    // Declared after tearDownUi, so Cucumber's reverse-declaration-order @After execution runs
+    // this one first — the driver (and its Grid/cloud session) must still be open for
+    // DownloadManager.cleanup() to clear any file the remote node is still holding.
+    @After("@web")
+    public void cleanupDownloads() {
+        downloadManager.cleanup(scenarioContext);
     }
 }

@@ -168,7 +168,7 @@ not repeated here.
 | Package | Purpose |
 |---|---|
 | `base` | `BasePage` (web POM base), `BaseScreen` (mobile Appium screen base), `DesktopBaseScreen` (desktop/NovaWindows screen base), `BaseTest` (plain TestNG base) |
-| `pages` | Web Page Objects, extend `base.BasePage` |
+| `pages` | Web Page Objects, extend `base.BasePage`, incl. `DownloadPage`, `UploadPage` |
 | `screens.mobile` | Mobile Screen Objects, extend `base.BaseScreen` |
 | `screens.desktop` | Desktop Screen Objects, extend `base.DesktopBaseScreen` |
 | `api.clients` | REST Assured clients returning typed POJOs |
@@ -179,7 +179,7 @@ not repeated here.
 | `db` | `DbClient` (HikariCP-pooled JDBC query/update utility), `RowMapper` (functional interface for mapping a row to a POJO), `QueryLoader` (loads `.sql` files from `resources/queries`), `SqlIdentifiers` (validates table/column names before templating), `ProductionWriteGuard` (blocks writes that look like production), `DbTestDataManager` (tracks/cleans up seeded rows per scenario), `MongoClientWrapper` (MongoDB document queries/writes), `RedisClient` (Redis key/cache queries/writes) |
 | `context` | `ScenarioContext` (per-scenario, DI'd state), `GlobalContext` (process-wide static state) |
 | `drivers` | `MobileDriverFactory`, `CloudAppUploader` |
-| `utils` | `DriverFactory`, `WaitUtils`, `ScreenshotUtil`, `RetryHelper`, `SoftAssertionsWrapper`, `StringHelper`, `DateHelper`, `FileHelper`, `CloudStatusReporter` |
+| `utils` | `DriverFactory`, `WaitUtils`, `ScreenshotUtil`, `RetryHelper`, `SoftAssertionsWrapper`, `StringHelper`, `DateHelper`, `FileHelper`, `CloudStatusReporter`, `ZipUtil` (create/extract/list `.zip` archives, incl. password-protected/AES, via Zip4j), `ZipExtractionManager` (tracks/cleans up temp extraction folders per scenario), `PdfUtil` (create/extract text/page-count/metadata from/Allure-attach `.pdf` files via Apache PDFBox), `ExcelUtil` (create/read sheets/cells/row counts/column lookups on `.xlsx` reports via Apache POI), `CsvUtil` (same, for `.csv` reports, via OpenCSV), `DownloadUtil` (retrieves a downloaded file locally or off a Grid/cloud node via `se:downloadsEnabled`), `DownloadManager` (tracks/cleans up downloaded files per scenario) |
 | `testdata` | `TestDataReader` (JSON/CSV/Excel), `TestDataGenerator` (Datafaker), `ApiTestDataManager` (cleanup tracking); `testdata.model` holds data POJOs |
 | `exceptions` | Custom runtime exceptions, also drive Allure's `categories.json` |
 | `reporting` | `AllureReportSetup` |
@@ -189,7 +189,7 @@ Test-side (`src/test/java`): `hooks` (`Hooks` — Cucumber hooks;
 `DbSeedHooks` — tag-driven DB seed/cleanup; `NoSqlTestInfraHooks` —
 starts/stops the embedded fake MongoDB/Redis for `@nosql`), `runners`
 (`CucumberTestRunner`/`RerunTestRunner`), `steps` (step definitions,
-including `DbSteps` and `NoSqlSteps`), `tests` (the plain-TestNG
+including `DbSteps`, `NoSqlSteps`, `FileSteps`, `PdfSteps`, `ReportSteps`, `DownloadSteps`, and `UploadSteps`), `tests` (the plain-TestNG
 `LoginTest`), `db` (`DbClientTest`, `ProductionWriteGuardTest` — plain
 TestNG; `ContainerDatabaseSuiteListener` — TestNG `ISuiteListener`,
 registered in `testng.xml`, starts/stops a throwaway Postgres via
@@ -440,6 +440,172 @@ suite's `parallel="methods"` mode) does the work when it sees `-Ddb=container`:
 Needs a Docker daemon reachable from wherever `mvn test` runs — see "In CI"
 above. Without `-Ddb=container`, this listener (and `ContainerDatabaseTest`,
 which self-skips) does nothing, so a bare `mvn test` never needs Docker.
+
+### File handling
+
+`utils.ZipUtil` creates, extracts, and lists `.zip` archives via Zip4j —
+including password-protected, AES-256 encrypted ones:
+
+```java
+// Zip a file or whole directory (recursively)
+File zip = ZipUtil.zip("src/test/resources/files/sample_source", "target/zip-fixtures/sample.zip");
+
+// Same, AES-256 encrypted
+ZipUtil.zip(sourcePath, destZipPath, "Secret123!");
+
+// Extract (password only needed if the archive is encrypted)
+ZipUtil.unzip(zipPath, "target/zip-extractions/" + UUID.randomUUID());
+ZipUtil.unzip(zipPath, destDir, "Secret123!");
+
+// Inspect without extracting — reading the central directory never needs a password,
+// only extracting entry contents does
+List<String> entries = ZipUtil.listContents(zipPath);
+int fileCount = ZipUtil.fileCount(zipPath);
+```
+
+Generic, schema-agnostic assertion steps already exist in `steps.FileSteps` —
+`the zip archive should contain file "<name>"` (also exposed as `the
+downloaded zip should contain file "<name>"`, so a scenario asserting on a
+real downloaded file's path reads naturally), a file-count step, and
+extraction + extracted-contents steps — see `file_handling.feature` (tagged
+`@files`, built from the small fixture directory at
+`resources/files/sample_source` since the framework has no browser-download
+plumbing today; point a step at a real downloaded file's path instead once
+one exists).
+
+#### Auto-cleaning temporary extraction folders
+
+`steps.FileSteps.extractZip(...)` extracts into a fresh,
+UUID-named directory under `target/zip-extractions/` and tracks it via
+`utils.ZipExtractionManager.track(scenarioContext, path)` — the same
+track/cleanup-per-scenario pattern as `db.DbTestDataManager`/
+`testdata.ApiTestDataManager`. `Hooks.cleanupZipExtractions` (an untagged
+`@After`, since any platform could in principle extract a zip) calls
+`cleanup(scenarioContext)` after every scenario, deleting every folder it
+tracked regardless of pass/fail — a no-op, and therefore free, for any
+scenario that never touched a zip.
+
+#### PDF validation
+
+`utils.PdfUtil` creates (for test fixtures), extracts text/page-count/
+metadata from, and Allure-attaches `.pdf` files via Apache PDFBox:
+
+```java
+// Build a fixture PDF — one page per entry in `pages`, lines drawn top to bottom
+File pdf = PdfUtil.createPdf("target/pdf-fixtures/invoice-1001.pdf", "Invoice #1001",
+        "Billing System", List.of(List.of("Invoice #1001", "Total Due: $249.99")));
+
+String text = PdfUtil.extractText(pdf.getPath());
+int pages = PdfUtil.pageCount(pdf.getPath());
+PDDocumentInformation info = PdfUtil.metadata(pdf.getPath()); // PDFBox's own type — info.getTitle(), info.getAuthor(), ...
+
+PdfUtil.attachToAllure("Generated PDF", pdf.getPath());
+```
+
+Generic steps already exist in `steps.PdfSteps` — `the PDF should have
+<N> page(s)`, `the PDF text should contain "<text>"`, `the PDF metadata
+title/author should be "<value>"`, and `the PDF is attached to the Allure
+report` — see `pdf_validation.feature` (tagged `@pdf`), which also shows the
+two `Given` steps that generate the sample PDF a scenario then asserts on
+(no real invoicing feature exists in this framework yet; point the same
+`Then` steps at a real generated PDF's path once one does).
+
+#### Excel and CSV validation
+
+`utils.ExcelUtil` (Apache POI, `.xlsx`) and `utils.CsvUtil` (OpenCSV, `.csv`)
+share the same shape — create (for test fixtures), read the header row,
+read every data row keyed by header, read one cell by data-row-index +
+column name, row count, and column lookup:
+
+```java
+// Excel
+File xlsx = ExcelUtil.createExcel("target/report-fixtures/objects.xlsx", "Objects",
+        List.of("id", "name", "price"), List.of(List.of("1", "MacBook Pro", "1849.99")));
+List<String> headers = ExcelUtil.headers(xlsx.getPath(), "Objects");
+int rows = ExcelUtil.rowCount(xlsx.getPath(), "Objects");
+String price = ExcelUtil.readCell(xlsx.getPath(), "Objects", 0, "price");
+List<String> allPrices = ExcelUtil.columnValues(xlsx.getPath(), "Objects", "price");
+
+// CSV — same methods, no sheet name
+File csv = CsvUtil.createCsv("target/report-fixtures/objects.csv",
+        List.of("id", "name", "price"), List.of(List.of("1", "MacBook Pro", "1849.99")));
+String csvPrice = CsvUtil.readCell(csv.getPath(), 0, "price");
+```
+
+Generic steps already exist in `steps.ReportSteps` — `the exported report
+header row should be:` (a single-row `DataTable`), `the exported report
+should contain <N> data row(s)`, `the "<col>" column of row <N> in the
+exported report should be "<value>"`, and a direct comparison back against
+the API response the report was exported from: `the "<col>" column of the
+exported report should equal the "<field>" field of "<contextKey>"` (same
+`ScenarioContext`-stashed-POJO convention as `db.DbSteps`'s API-vs-DB
+comparison step). See `report_validation.feature` (tagged `@reports`) for
+the full create-object → export → validate round trip against both formats
+— no real report-export feature exists in this framework yet, so the `And`
+steps that generate the CSV/Excel file are the pattern to point at a real
+exported file's path once one exists.
+
+#### Downloading files on Grid and cloud
+
+`utils.DownloadUtil` retrieves a downloaded file the right way for wherever
+the browser session actually ran, so callers never branch on execution mode
+themselves:
+
+```java
+// Blocks until the download finishes — on Grid/cloud this pulls the file off the remote
+// node first (Selenium's se:downloadsEnabled API); locally it just polls the filesystem,
+// skipping any in-progress .crdownload/.part file
+Path downloaded = DownloadUtil.waitForDownload(DriverFactory.getDriver(), "some-file.txt");
+
+// Lower-level Grid/cloud-only calls, if a step needs them directly
+List<String> remoteFiles = DownloadUtil.listRemoteFiles(driver);
+DownloadUtil.deleteRemoteFiles(driver);
+```
+
+`DriverFactory` makes both sides of this work without any step-level
+config: local Chrome/Firefox/Edge sessions get `download.default_directory`
+(Chromium) / `browser.download.dir` (Firefox) prefs pointed at
+`DownloadUtil.downloadDir()` (config key `downloadDir`, default
+`target/downloads`) with no save-as prompt; Grid/cloud sessions instead get
+`setEnableDownloads(true)`, Selenium 4's `se:downloadsEnabled` capability,
+which is what exposes the remote-file API above.
+
+Generic steps already exist in `steps.DownloadSteps` — `the user downloads
+the file "<name>"`, `the downloaded file should exist`, and `the downloaded
+file should not be empty` — see `file_downloads.feature` (tagged
+`@downloads`), which drives the-internet's `/download` page. That page is a
+shared public demo app (its file list varies run to run), so the sample
+scenario's `When` step picks whatever's first rather than a hardcoded name;
+point `theUserDownloadsTheFile` at a known file name once a real
+download feature exists. `Hooks.cleanupDownloads` (`@After("@web")`,
+declared after `tearDownUi` so it runs *before* the driver quits — Cucumber
+runs `@After` hooks in reverse declaration order) calls
+`utils.DownloadManager.cleanup(scenarioContext)` after every `@web`
+scenario, deleting every file it tracked locally and clearing anything left
+on the remote node.
+
+#### Uploading files on remote sessions
+
+Upload steps need no local/remote branching at all:
+`DriverFactory.createRemoteDriver` registers a `LocalFileDetector` on every
+`RemoteWebDriver` it builds —
+
+```java
+remoteDriver.setFileDetector(new LocalFileDetector());
+```
+
+— so `sendKeys(absolutePath)` on a file input transparently ships that
+local file to the Grid node before Selenium types its path in, exactly as
+if the session were local.
+
+Fixture files for upload scenarios live under
+`resources/testdata/uploads/` (not env-specific like `testdata/{env}/` —
+these are static files to upload, not environment-driven test data), and
+are resolved off the classpath the same way `FileSteps` resolves its zip
+fixture directory. `steps.UploadSteps`/`pages.UploadPage` drive
+the-internet's `/upload` page — `the user uploads the file "<name>"` then
+`the uploaded file name should be displayed as "<name>"` — see
+`file_uploads.feature` (tagged `@uploads`).
 
 ### Step definitions
 

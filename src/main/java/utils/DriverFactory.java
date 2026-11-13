@@ -13,11 +13,15 @@ import org.openqa.selenium.edge.EdgeDriver;
 import org.openqa.selenium.edge.EdgeOptions;
 import org.openqa.selenium.firefox.FirefoxDriver;
 import org.openqa.selenium.firefox.FirefoxOptions;
+import org.openqa.selenium.remote.AbstractDriverOptions;
+import org.openqa.selenium.remote.LocalFileDetector;
 import org.openqa.selenium.remote.RemoteWebDriver;
 
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -65,15 +69,21 @@ public class DriverFactory {
         return switch (browser) {
             case "chrome" -> {
                 WebDriverManager.chromedriver().setup();
-                yield new ChromeDriver(chromeOptions(headless));
+                ChromeOptions options = chromeOptions(headless);
+                applyLocalDownloadPrefs(options);
+                yield new ChromeDriver(options);
             }
             case "firefox" -> {
                 WebDriverManager.firefoxdriver().setup();
-                yield new FirefoxDriver(firefoxOptions(headless));
+                FirefoxOptions options = firefoxOptions(headless);
+                applyLocalDownloadPrefs(options);
+                yield new FirefoxDriver(options);
             }
             case "edge" -> {
                 WebDriverManager.edgedriver().setup();
-                yield new EdgeDriver(edgeOptions(headless));
+                EdgeOptions options = edgeOptions(headless);
+                applyLocalDownloadPrefs(options);
+                yield new EdgeDriver(options);
             }
             default -> throw new RuntimeException("❗ Browser not supported: " + browser);
         };
@@ -81,10 +91,12 @@ public class DriverFactory {
 
     private static WebDriver createRemoteDriver(String browser, boolean headless) {
         String gridUrl = ConfigReader.get("gridUrl", "http://localhost:4444/wd/hub");
+        // Grid (and any cloud provider speaking the same WebDriver protocol extension) exposes
+        // HasDownloads once se:downloadsEnabled is on — see utils.DownloadUtil.
         MutableCapabilities options = switch (browser) {
-            case "chrome" -> chromeOptions(headless);
-            case "firefox" -> firefoxOptions(headless);
-            case "edge" -> edgeOptions(headless);
+            case "chrome" -> enableRemoteDownloads(chromeOptions(headless));
+            case "firefox" -> enableRemoteDownloads(firefoxOptions(headless));
+            case "edge" -> enableRemoteDownloads(edgeOptions(headless));
             default -> throw new RuntimeException("❗ Browser not supported: " + browser);
         };
 
@@ -93,7 +105,12 @@ public class DriverFactory {
             options.setCapability("platformName", platformName);
         }
 
-        return new RemoteWebDriver(toUrl(gridUrl), (Capabilities) options);
+        RemoteWebDriver remoteDriver = new RemoteWebDriver(toUrl(gridUrl), (Capabilities) options);
+        // Without this, sendKeys(localPath) on a file input looks for that path on the Grid node
+        // itself and fails — LocalFileDetector instead zips the local file and ships it to the
+        // node transparently, so upload steps (see pages.UploadPage) need no local/remote branch.
+        remoteDriver.setFileDetector(new LocalFileDetector());
+        return remoteDriver;
     }
 
     private static ChromeOptions chromeOptions(boolean headless) {
@@ -124,6 +141,40 @@ public class DriverFactory {
         if (headless) {
             options.addArguments("--headless=new");
         }
+        return options;
+    }
+
+    /** Local-run downloads land straight in {@link DownloadUtil#downloadDir()} — no prompt, no .crdownload left unresolved. */
+    private static void applyLocalDownloadPrefs(ChromeOptions options) {
+        options.setExperimentalOption("prefs", chromiumDownloadPrefs());
+    }
+
+    private static void applyLocalDownloadPrefs(EdgeOptions options) {
+        options.setExperimentalOption("prefs", chromiumDownloadPrefs());
+    }
+
+    private static void applyLocalDownloadPrefs(FirefoxOptions options) {
+        String downloadDir = DownloadUtil.downloadDir().toAbsolutePath().toString();
+        options.addPreference("browser.download.folderList", 2);
+        options.addPreference("browser.download.dir", downloadDir);
+        options.addPreference("browser.download.useDownloadDir", true);
+        options.addPreference("browser.helperApps.neverAsk.saveToDisk",
+                "application/octet-stream,application/zip,application/pdf,text/csv,text/plain,"
+                        + "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        options.addPreference("pdfjs.disabled", true);
+    }
+
+    private static Map<String, Object> chromiumDownloadPrefs() {
+        Map<String, Object> prefs = new HashMap<>();
+        prefs.put("download.default_directory", DownloadUtil.downloadDir().toAbsolutePath().toString());
+        prefs.put("download.prompt_for_download", false);
+        prefs.put("download.directory_upgrade", true);
+        prefs.put("safebrowsing.enabled", true);
+        return prefs;
+    }
+
+    private static <T extends AbstractDriverOptions<?>> T enableRemoteDownloads(T options) {
+        options.setEnableDownloads(true);
         return options;
     }
 

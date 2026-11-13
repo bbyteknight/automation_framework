@@ -11,11 +11,11 @@ Every scenario carries **exactly one platform tag** and **zero or more suite tag
 
 | Tag | Meaning | Driver behavior |
 |---|---|---|
-| `@web` | Browser/Selenium scenario | `Hooks.setUpWeb()` starts/quits the browser |
+| `@web` | Browser/Selenium scenario, including file downloads via `utils.DownloadUtil`/`utils.DownloadManager` and file uploads via `pages.UploadPage` (local/remote-transparent, see `DriverFactory`'s `LocalFileDetector`) | `Hooks.setUpWeb()` starts/quits the browser |
 | `@android` | Android/Appium scenario | `Hooks.setUpMobile()` starts an Android driver |
 | `@ios` | iOS/Appium scenario | `Hooks.setUpMobile()` starts an iOS driver |
 | `@desktop` | Windows desktop/Appium NovaWindows scenario | `Hooks.setUpDesktop()` starts a Windows driver (needs `-Dplatform=windows`, see `DESKTOP_AUTOMATION_SETUP.md`) |
-| `@api` | Backend-only scenario — REST Assured, and/or direct DB/NoSQL validation via `db.*` | No driver is started — `@Before`/`@After` are scoped to `@web`/`@android`/`@ios`/`@desktop` only |
+| `@api` | Backend-only scenario — REST Assured, direct DB/NoSQL validation via `db.*`, and/or file/archive/PDF/report validation via `utils.ZipUtil`/`utils.PdfUtil`/`utils.ExcelUtil`/`utils.CsvUtil` | No driver is started — `@Before`/`@After` are scoped to `@web`/`@android`/`@ios`/`@desktop` only |
 
 A scenario must always carry one of these so hooks know what (if anything)
 to spin up. Never combine two platform tags on the same scenario (e.g.

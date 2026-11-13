@@ -1,0 +1,3 @@
+This is a sample file used by steps.UploadSteps to exercise file-upload scenarios — identical
+whether the browser session is local or running on a remote Grid node (see DriverFactory's
+LocalFileDetector, which ships this file to the node transparently).
