@@ -179,7 +179,7 @@ not repeated here.
 | `db` | `DbClient` (HikariCP-pooled JDBC query/update utility), `RowMapper` (functional interface for mapping a row to a POJO), `QueryLoader` (loads `.sql` files from `resources/queries`), `SqlIdentifiers` (validates table/column names before templating), `ProductionWriteGuard` (blocks writes that look like production), `DbTestDataManager` (tracks/cleans up seeded rows per scenario), `MongoClientWrapper` (MongoDB document queries/writes), `RedisClient` (Redis key/cache queries/writes) |
 | `context` | `ScenarioContext` (per-scenario, DI'd state), `GlobalContext` (process-wide static state) |
 | `drivers` | `MobileDriverFactory`, `CloudAppUploader` |
-| `utils` | `DriverFactory`, `WaitUtils`, `ScreenshotUtil`, `RetryHelper`, `SoftAssertionsWrapper`, `StringHelper`, `DateHelper`, `FileHelper`, `CloudStatusReporter`, `ZipUtil` (create/extract/list `.zip` archives, incl. password-protected/AES, via Zip4j), `ZipExtractionManager` (tracks/cleans up temp extraction folders per scenario), `PdfUtil` (create/extract text/page-count/metadata from/Allure-attach `.pdf` files via Apache PDFBox), `ExcelUtil` (create/read sheets/cells/row counts/column lookups on `.xlsx` reports via Apache POI), `CsvUtil` (same, for `.csv` reports, via OpenCSV), `DownloadUtil` (retrieves a downloaded file locally or off a Grid/cloud node via `se:downloadsEnabled`), `DownloadManager` (tracks/cleans up downloaded files per scenario) |
+| `utils` | `DriverFactory`, `WaitUtils`, `ScreenshotUtil`, `RetryHelper`, `SoftAssertionsWrapper`, `StringHelper`, `DateHelper`, `FileHelper`, `CloudStatusReporter`, `ZipUtil` (create/extract/list `.zip` archives, incl. password-protected/AES, via Zip4j), `ZipExtractionManager` (tracks/cleans up temp extraction folders per scenario), `PdfUtil` (create/extract text/page-count/metadata from/Allure-attach `.pdf` files via Apache PDFBox), `ExcelUtil` (create/read sheets/cells/row counts/column lookups on `.xlsx` reports via Apache POI), `CsvUtil` (same, for `.csv` reports, via OpenCSV), `DownloadUtil` (retrieves a downloaded file locally or off a Grid/cloud node via `se:downloadsEnabled`), `DownloadManager` (tracks/cleans up downloaded files per scenario), `NetworkMockUtil` (WebDriver BiDi Network module wrapper — mocks backend responses, handles basic auth), `JsErrorMonitor` (WebDriver BiDi LogInspector module wrapper — captures console logs/uncaught JS exceptions, filters known-harmless ones via an allow-list), `NetworkPerformanceMonitor` (WebDriver BiDi Network module wrapper — passively times/records every request's status, reports the slowest and any 4xx/5xx/network failures, filters known-harmless ones via an allow-list) |
 | `testdata` | `TestDataReader` (JSON/CSV/Excel), `TestDataGenerator` (Datafaker), `ApiTestDataManager` (cleanup tracking); `testdata.model` holds data POJOs |
 | `exceptions` | Custom runtime exceptions, also drive Allure's `categories.json` |
 | `reporting` | `AllureReportSetup` |
@@ -189,7 +189,7 @@ Test-side (`src/test/java`): `hooks` (`Hooks` — Cucumber hooks;
 `DbSeedHooks` — tag-driven DB seed/cleanup; `NoSqlTestInfraHooks` —
 starts/stops the embedded fake MongoDB/Redis for `@nosql`), `runners`
 (`CucumberTestRunner`/`RerunTestRunner`), `steps` (step definitions,
-including `DbSteps`, `NoSqlSteps`, `FileSteps`, `PdfSteps`, `ReportSteps`, `DownloadSteps`, and `UploadSteps`), `tests` (the plain-TestNG
+including `DbSteps`, `NoSqlSteps`, `FileSteps`, `PdfSteps`, `ReportSteps`, `DownloadSteps`, `UploadSteps`, `NetworkMockSteps`, `ConsoleLogSteps`, and `NetworkPerformanceSteps`), `tests` (the plain-TestNG
 `LoginTest`), `db` (`DbClientTest`, `ProductionWriteGuardTest` — plain
 TestNG; `ContainerDatabaseSuiteListener` — TestNG `ISuiteListener`,
 registered in `testng.xml`, starts/stops a throwaway Postgres via
@@ -606,6 +606,161 @@ fixture directory. `steps.UploadSteps`/`pages.UploadPage` drive
 the-internet's `/upload` page — `the user uploads the file "<name>"` then
 `the uploaded file name should be displayed as "<name>"` — see
 `file_uploads.feature` (tagged `@uploads`).
+
+### Advanced Web BiDi — network mocking
+
+`DriverFactory` requests WebDriver BiDi on every Chrome/Firefox/Edge session,
+local or remote, by setting the `webSocketUrl` capability to `true` — that's
+what makes the driver actually open a BiDi WebSocket. `utils.NetworkMockUtil`
+wraps BiDi's Network module (`org.openqa.selenium.bidi.module.Network`) to
+fabricate backend responses for edge-case testing, without the real backend
+ever seeing the request:
+
+```java
+NetworkMockUtil networkMockUtil = new NetworkMockUtil(DriverFactory.getDriver());
+
+// The real backend is never contacted for this exact URL — provideResponse fully
+// fabricates the response during BEFORE_REQUEST_SENT, before anything is sent
+networkMockUtil.mockResponse("https://api.example.com/orders", 500, "{\"error\": \"Service unavailable\"}");
+
+// AUTH_REQUIRED only — supplies credentials so no native browser credential prompt appears
+networkMockUtil.handleBasicAuth("admin", "admin");
+
+networkMockUtil.close(); // removes every intercept this instance registered
+```
+
+Only one `BEFORE_REQUEST_SENT` intercept is ever registered (added lazily on
+the first `mockResponse` call) — every mock after that shares it, and a
+single dispatcher falls back to `continueRequest` for anything that doesn't
+match a registered mock. Skipping that fallback would strand every *other*
+request on the page (including its own navigation) waiting on a
+continuation that never arrives — this is the one gotcha to keep if you
+touch this class.
+
+Generic steps already exist in `steps.NetworkMockSteps` — `network mocking
+is enabled`, `the API "<url>" returns status <code>` (optionally `with this
+mock body:`), `basic auth is handled with username "<u>" and password
+"<p>"` — see `network_mocking.feature` (tagged `@bidi`), which also shows
+`the browser fetches "<url>"` (a JS `fetch()` run via
+`executeAsyncScript`, since no page in this framework makes its own API
+call yet — point it at a real page's own call once one exists).
+`Hooks.cleanupNetworkMocks` (`@After("@web")`, declared after `tearDownUi`
+for the same before-the-driver-quits reason as `cleanupDownloads`) closes
+it after every scenario.
+
+**BiDi API still evolving — check before upgrading.** This Selenium
+version (`selenium.version` in `pom.xml`) ships two parallel
+network-interception APIs: `org.openqa.selenium.bidi.module.Network` (used
+here — the stable, callback-based shape from Selenium's own
+`NetworkCommandsTest`) and a newer `org.openqa.selenium.bidi.protocol.module.Network`
+(event-object based, still settling). A class disappearing from one
+package and reappearing in the other on a version bump is expected, not a
+bug — re-check both package names against whatever version is installed.
+Separately, each browser's own BiDi network implementation is
+independently still maturing: a mismatched Selenium/browser build pairing
+(e.g. a very recent Chrome release the installed Selenium's bundled
+CDP/BiDi support hasn't caught up to yet) can make an intercepted request
+simply never fire its event — indistinguishable from a script timeout on
+the Java side, and not something this code can detect or work around.
+`network_mocking.feature`'s own description documents the exact version
+mismatch hit while building this.
+
+### Advanced Web BiDi — console/JS error capture
+
+`utils.JsErrorMonitor` wraps BiDi's `LogInspector` module
+(`org.openqa.selenium.bidi.module.LogInspector`) to subscribe to the
+browser's own console output and uncaught JavaScript exceptions for every
+`@web` scenario — no page instrumentation needed, same `webSocketUrl`
+capability `DriverFactory` already requests for `NetworkMockUtil` above.
+`hooks.Hooks` wires it automatically: `setUpWeb` creates one per scenario,
+and `captureJsErrors` (`@After("@web")`, declared last so it runs *first*
+among the `@web` `@After` hooks) reads it before the driver quits:
+
+```java
+JsErrorMonitor jsErrorMonitor = new JsErrorMonitor(DriverFactory.getDriver());
+// ... interact with the page ...
+jsErrorMonitor.consoleLogText();      // every console.*/exception line captured, in order
+jsErrorMonitor.unignoredJsErrors();   // console.error() text + uncaught exceptions, minus the allow-list
+jsErrorMonitor.close();               // detaches the BiDi listeners
+```
+
+`captureJsErrors` attaches the full console log to Allure whenever the
+scenario is already failed (same place `tearDownUi` attaches the failure
+screenshot/page source) **or** when a JS error is about to fail the build
+(see below) — not on every green scenario, to avoid a wall of noise in the
+report. Two config keys (`config/dev.properties`, overridable via `-D...`)
+control the rest:
+
+- `failOnJsError` (default `false`) — when `true`, any unignored JS error
+  throws an `AssertionError` from the `@After` hook, which Cucumber treats
+  as a scenario failure (and `tearDownUi`, which runs *after* this hook,
+  then takes its usual failure screenshot too, since the scenario is
+  already marked failed by then). Left `false` by default so turning this
+  feature on doesn't retroactively fail an existing suite the moment it's
+  enabled — flip it once the pages in scope are known to be clean.
+- `jsErrorAllowList` — a comma-separated, case-insensitive list of
+  substrings matched against each error's text; anything matching is still
+  captured in the console-log attachment but never counted as a failure
+  (e.g. a known, harmless third-party script error). Ships with
+  `favicon.ico,ERR_BLOCKED_BY_CLIENT` as a starting example.
+
+Generic steps already exist in `steps.ConsoleLogSteps` — `the page logs a
+console error "<msg>"`, `the page throws an uncaught JavaScript error
+"<msg>"`, `the browser console should report a JS error containing
+"<text>"` / `an uncaught JS error` / `no JS errors`, `the browser console
+log should contain "<text>"` — see `js_error_capture.feature` (tagged
+`@bidi`). Its "uncaught exception" scenario only asserts *that* an error
+was captured, not its message: a real run showed Chrome's BiDi bridge
+reports uncaught exceptions as a bare `"Uncaught Error"`, dropping the
+thrown `Error`'s own message entirely — another concrete instance of the
+"BiDi API still evolving" caveat above, not a bug in this code.
+
+### Advanced Web BiDi — network performance assertions
+
+`utils.NetworkPerformanceMonitor` wraps BiDi's Network module
+(`org.openqa.selenium.bidi.module.Network` — same module `NetworkMockUtil`
+uses) to passively time and record the status of every request/response a
+`@web` scenario makes, by correlating `onBeforeRequestSent`/
+`onResponseCompleted`/`onFetchError` events on their shared `requestId`.
+Unlike `NetworkMockUtil`, it never calls `addIntercept` — it only
+subscribes to plain event notifications, which fire regardless of any
+intercept — so it keeps working even in an environment hitting the
+Chrome/Selenium BiDi-version gap documented above, which is specific to
+*blocking* interception.
+
+`hooks.Hooks` wires it the same way as `JsErrorMonitor`: `setUpWeb` creates
+one per scenario, and a new `captureNetworkPerformance` (`@After("@web")`,
+declared last of all) reads it before the driver quits — but unlike
+`captureJsErrors`, it attaches a "Network Performance" report (request
+count, the 5 slowest requests, and any failed ones) to Allure for **every**
+`@web` scenario, not only a failed one, since the DoD here is "slow or
+failing calls are visible in every web run":
+
+```java
+NetworkPerformanceMonitor networkPerformanceMonitor = new NetworkPerformanceMonitor(DriverFactory.getDriver());
+// ... interact with the page ...
+networkPerformanceMonitor.slowest(5);                 // top N slowest completed requests
+networkPerformanceMonitor.slowerThan(10_000);          // completed requests over a given threshold (ms)
+networkPerformanceMonitor.failedRequests();            // 4xx/5xx + network-level failures, minus the allow-list
+networkPerformanceMonitor.close();                     // detaches the BiDi listeners
+```
+
+Generic steps already exist in `steps.NetworkPerformanceSteps` — `no
+request should take longer than <n> seconds`, `no network response should
+be a 4xx or 5xx error`, and `a 4xx or 5xx response should have been
+detected` — see `network_performance.feature` (tagged `@bidi`). No setup
+step is needed first (unlike `NetworkMockSteps`' `network mocking is
+enabled`) — every `@web` scenario already has a monitor running.
+
+A real run against `the-internet.herokuapp.com` (this suite's own test
+site) surfaced a genuine, reproducible third-party noise source: it fires
+an Optimizely analytics beacon on every page load that fails DNS
+resolution (`ERR_NAME_NOT_RESOLVED`) in this sandbox. `networkErrorAllowList`
+(`config/dev.properties`, same comma-separated/case-insensitive-substring
+convention as `JsErrorMonitor`'s `jsErrorAllowList`) filters that out of
+`failedRequests()` — without it, `network_performance.feature`'s "no
+failed responses" scenario would be flaky depending on exactly when that
+beacon's failure event happened to arrive relative to the assertion.
 
 ### Step definitions
 

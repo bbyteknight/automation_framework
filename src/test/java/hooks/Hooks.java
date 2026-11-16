@@ -19,11 +19,15 @@ import testdata.ApiTestDataManager;
 import utils.CloudStatusReporter;
 import utils.DownloadManager;
 import utils.DriverFactory;
+import utils.JsErrorMonitor;
+import utils.NetworkMockUtil;
+import utils.NetworkPerformanceMonitor;
 import utils.ScreenshotUtil;
 import utils.ZipExtractionManager;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 public class Hooks {
 
@@ -87,6 +91,8 @@ public class Hooks {
     public void setUpWeb() {
         DriverFactory.initDriver(ConfigReader.get("browser"));
         DriverFactory.launchApp();
+        scenarioContext.set(JsErrorMonitor.CONTEXT_KEY, new JsErrorMonitor(DriverFactory.getDriver()));
+        scenarioContext.set(NetworkPerformanceMonitor.CONTEXT_KEY, new NetworkPerformanceMonitor(DriverFactory.getDriver()));
     }
 
     @Before("@android or @ios")
@@ -166,5 +172,101 @@ public class Hooks {
     @After("@web")
     public void cleanupDownloads() {
         downloadManager.cleanup(scenarioContext);
+    }
+
+    // Same reasoning as cleanupDownloads: must run before quitDriver() closes the BiDi
+    // WebSocket the intercept lives on.
+    @After("@web")
+    public void cleanupNetworkMocks() {
+        if (scenarioContext.contains(NetworkMockUtil.CONTEXT_KEY)) {
+            scenarioContext.get(NetworkMockUtil.CONTEXT_KEY, NetworkMockUtil.class).close();
+        }
+    }
+
+    // Declared last among the @web @After hooks, so Cucumber's reverse-declaration-order
+    // execution runs this one FIRST — meaning if failOnJsError trips the throw below, the
+    // scenario is already marked failed by the time tearDownUi (declared first, runs last)
+    // takes its failure screenshot/page-source attachment.
+    @After("@web")
+    public void captureJsErrors(Scenario scenario) {
+        if (!scenarioContext.contains(JsErrorMonitor.CONTEXT_KEY)) {
+            return;
+        }
+        JsErrorMonitor jsErrorMonitor = scenarioContext.get(JsErrorMonitor.CONTEXT_KEY, JsErrorMonitor.class);
+        jsErrorMonitor.close();
+
+        List<String> jsErrors = jsErrorMonitor.unignoredJsErrors();
+        boolean failOnJsError = ConfigReader.get("failOnJsError", "false").equalsIgnoreCase("true");
+        boolean willFailForJsErrors = failOnJsError && !jsErrors.isEmpty();
+
+        if ((scenario.isFailed() || willFailForJsErrors) && jsErrorMonitor.hasConsoleLog()) {
+            scenario.attach(jsErrorMonitor.consoleLogText().getBytes(StandardCharsets.UTF_8),
+                    "text/plain", "Browser Console Log");
+        }
+
+        if (willFailForJsErrors) {
+            throw new AssertionError("❗ JavaScript error(s) detected in the browser console: " + jsErrors);
+        } else if (!jsErrors.isEmpty()) {
+            logger.warn("⚠️ {} JS error(s) detected in the browser console (failOnJsError is disabled): {}",
+                    jsErrors.size(), jsErrors);
+        }
+    }
+
+    // Default "slow" cutoff for the Allure report/log warning below — separate from the per-scenario
+    // threshold steps.NetworkPerformanceSteps asserts with ("no request should take longer than
+    // <n> seconds"), which is scenario-chosen and always enforced when used, regardless of this value.
+    private static final long SLOW_REQUEST_REPORT_THRESHOLD_MS = 3000;
+    private static final int SLOWEST_REQUESTS_TO_REPORT = 5;
+
+    // Declared last among the @web @After hooks (after captureJsErrors), so it runs even earlier
+    // in Cucumber's reverse-declaration-order execution — doesn't matter functionally (this only
+    // reads the monitor's in-memory list), but keeps every BiDi-monitor cleanup hook grouped the
+    // same way. Attaches a network performance report to Allure for every @web scenario (not just
+    // failures) — the DoD is "slow or failing calls are visible in every web run", not only failed ones.
+    @After("@web")
+    public void captureNetworkPerformance(Scenario scenario) {
+        if (!scenarioContext.contains(NetworkPerformanceMonitor.CONTEXT_KEY)) {
+            return;
+        }
+        NetworkPerformanceMonitor networkPerformanceMonitor =
+                scenarioContext.get(NetworkPerformanceMonitor.CONTEXT_KEY, NetworkPerformanceMonitor.class);
+        networkPerformanceMonitor.close();
+
+        List<NetworkPerformanceMonitor.RequestOutcome> slowest =
+                networkPerformanceMonitor.slowest(SLOWEST_REQUESTS_TO_REPORT);
+        List<NetworkPerformanceMonitor.RequestOutcome> failed = networkPerformanceMonitor.failedRequests();
+
+        if (!slowest.isEmpty()) {
+            scenario.attach(buildNetworkPerformanceReport(networkPerformanceMonitor, slowest, failed)
+                            .getBytes(StandardCharsets.UTF_8),
+                    "text/plain", "Network Performance");
+        }
+
+        List<NetworkPerformanceMonitor.RequestOutcome> slow =
+                networkPerformanceMonitor.slowerThan(SLOW_REQUEST_REPORT_THRESHOLD_MS);
+        if (!slow.isEmpty()) {
+            logger.warn("🐢 {} request(s) slower than {}ms: {}", slow.size(), SLOW_REQUEST_REPORT_THRESHOLD_MS, slow);
+        }
+        if (!failed.isEmpty()) {
+            logger.warn("🔴 {} failed network response(s) during this scenario: {}", failed.size(), failed);
+        }
+    }
+
+    private String buildNetworkPerformanceReport(NetworkPerformanceMonitor networkPerformanceMonitor,
+            List<NetworkPerformanceMonitor.RequestOutcome> slowest,
+            List<NetworkPerformanceMonitor.RequestOutcome> failed) {
+        StringBuilder report = new StringBuilder();
+        report.append(networkPerformanceMonitor.completedRequests().size()).append(" request(s) captured.")
+                .append(System.lineSeparator()).append(System.lineSeparator());
+
+        report.append("Slowest requests:").append(System.lineSeparator());
+        slowest.forEach(request -> report.append("  ").append(request).append(System.lineSeparator()));
+
+        if (!failed.isEmpty()) {
+            report.append(System.lineSeparator()).append("Failed responses (4xx/5xx or network error):")
+                    .append(System.lineSeparator());
+            failed.forEach(request -> report.append("  ").append(request).append(System.lineSeparator()));
+        }
+        return report.toString();
     }
 }

@@ -122,6 +122,7 @@ public class DriverFactory {
         if (headless) {
             options.addArguments("--headless=new");
         }
+        enableBiDi(options);
         return options;
     }
 
@@ -131,6 +132,7 @@ public class DriverFactory {
         if (headless) {
             options.addArguments("--headless");
         }
+        enableBiDi(options);
         return options;
     }
 
@@ -141,7 +143,15 @@ public class DriverFactory {
         if (headless) {
             options.addArguments("--headless=new");
         }
+        enableBiDi(options);
         return options;
+    }
+
+    // Requesting this capability is what makes the driver actually open a BiDi WebSocket and
+    // return its URL — without it, RemoteWebDriver.maybeGetBiDi() (and so utils.NetworkMockUtil)
+    // has nothing to connect to, local or remote. Same capability name for every browser.
+    private static void enableBiDi(MutableCapabilities options) {
+        options.setCapability("webSocketUrl", true);
     }
 
     /** Local-run downloads land straight in {@link DownloadUtil#downloadDir()} — no prompt, no .crdownload left unresolved. */

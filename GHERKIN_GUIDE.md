@@ -11,7 +11,7 @@ Every scenario carries **exactly one platform tag** and **zero or more suite tag
 
 | Tag | Meaning | Driver behavior |
 |---|---|---|
-| `@web` | Browser/Selenium scenario, including file downloads via `utils.DownloadUtil`/`utils.DownloadManager` and file uploads via `pages.UploadPage` (local/remote-transparent, see `DriverFactory`'s `LocalFileDetector`) | `Hooks.setUpWeb()` starts/quits the browser |
+| `@web` | Browser/Selenium scenario, including file downloads via `utils.DownloadUtil`/`utils.DownloadManager`, file uploads via `pages.UploadPage` (local/remote-transparent, see `DriverFactory`'s `LocalFileDetector`), WebDriver BiDi network mocking via `utils.NetworkMockUtil`, WebDriver BiDi console-log/JS-error capture via `utils.JsErrorMonitor`, and WebDriver BiDi network performance capture via `utils.NetworkPerformanceMonitor` | `Hooks.setUpWeb()` starts/quits the browser |
 | `@android` | Android/Appium scenario | `Hooks.setUpMobile()` starts an Android driver |
 | `@ios` | iOS/Appium scenario | `Hooks.setUpMobile()` starts an iOS driver |
 | `@desktop` | Windows desktop/Appium NovaWindows scenario | `Hooks.setUpDesktop()` starts a Windows driver (needs `-Dplatform=windows`, see `DESKTOP_AUTOMATION_SETUP.md`) |
