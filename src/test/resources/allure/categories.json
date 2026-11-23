@@ -1,23 +1,28 @@
 [
   {
-    "name": "Configuration problems",
-    "matchedStatuses": ["broken"],
-    "traceRegex": ".*exceptions\\.ConfigurationException.*"
-  },
-  {
-    "name": "Test data problems",
-    "matchedStatuses": ["broken"],
-    "traceRegex": ".*exceptions\\.TestDataException.*"
-  },
-  {
-    "name": "Infrastructure problems",
-    "matchedStatuses": ["broken"],
-    "traceRegex": ".*(exceptions\\.RetryExhaustedException|WebDriverException|SessionNotCreatedException|ConnectException|SocketTimeoutException|UnknownHostException).*"
-  },
-  {
-    "name": "Product defects",
+    "name": "Product bug",
     "matchedStatuses": ["failed"],
     "traceRegex": ".*AssertionError.*"
+  },
+  {
+    "name": "Locator problems",
+    "matchedStatuses": ["broken", "failed"],
+    "traceRegex": ".*(NoSuchElementException|StaleElementReferenceException|ElementNotInteractableException|ElementClickInterceptedException|InvalidSelectorException).*|.*TimeoutException.*utils\\.WaitUtils.*"
+  },
+  {
+    "name": "Timeout problems",
+    "matchedStatuses": ["broken", "failed"],
+    "traceRegex": ".*(java\\.util\\.concurrent\\.TimeoutException|ScriptTimeoutException|RemoteWebDriver\\.(get|executeAsyncScript)|DriverCommandExecutor\\.execute|JdkHttpClient).*"
+  },
+  {
+    "name": "Environment problems",
+    "matchedStatuses": ["broken"],
+    "traceRegex": ".*(exceptions\\.ConfigurationException|exceptions\\.RetryExhaustedException|WebDriverException|SessionNotCreatedException|InvalidSessionIdException|ConnectException|SocketTimeoutException|UnknownHostException).*"
+  },
+  {
+    "name": "Data problems",
+    "matchedStatuses": ["broken"],
+    "traceRegex": ".*(exceptions\\.TestDataException|NumberFormatException|JsonProcessingException|JsonParseException).*"
   },
   {
     "name": "Ignored tests",

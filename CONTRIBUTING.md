@@ -762,6 +762,128 @@ convention as `JsErrorMonitor`'s `jsErrorAllowList`) filters that out of
 failed responses" scenario would be flaky depending on exactly when that
 beacon's failure event happened to arrive relative to the assertion.
 
+### Self-healing locators (Healenium)
+
+`utils.DriverFactory` can wrap a `@web` driver in
+[Healenium](https://github.com/healenium/healenium-web)'s `SelfHealingDriver`
+proxy, so a locator that breaks because the DOM changed gets a best-effort
+replacement at runtime instead of just failing the scenario — and every
+attempt (healed or not) is recorded in Healenium's own backend for a human to
+review, rather than silently patched and forgotten.
+
+**It's off by default.** Set `selfHealingEnabled=true` in
+`config/<env>.properties` (`utils.DriverFactory#maybeWrapForSelfHealing`) to
+turn it on for `@web` scenarios — mobile/desktop drivers are never wrapped.
+Turning it off again (the default) means `DriverFactory` hands back the plain
+driver, so nothing about Healenium is even on the classpath at runtime for
+those scenarios.
+
+**Backend setup (one-time, local or CI):**
+
+```bash
+docker compose -f docker-compose-healenium.yml up -d
+```
+
+This starts `hlm-backend` (port 7878) and its Postgres store. Pin an exact
+`healenium/hlm-backend` tag (see the file's own comment) before relying on
+this in CI — it currently runs `latest` for local-dev convenience only.
+
+**Library tuning** lives in `src/test/resources/healenium.properties`
+(`recovery-tries`, `score-cap`, `hlm.server.url`, etc. — read from the
+classpath, separate from this project's own `config/*.properties`). `heal-
+enabled` there is Healenium's own flag and only matters once
+`selfHealingEnabled=true` actually wrapped the driver; it can also be
+overridden per-run without editing the file via `-Dheal-enabled=false`.
+
+**Reviewing healing reports** — this is the actual Definition of Done here
+("healed locators are reported and tracked, not silently ignored"), so it
+needs a habit, not just the toggle: after a self-healing run, check
+`hlm-backend`'s report (`http://localhost:7878`, or the
+[`healenium-report-mvn`](https://github.com/healenium/healenium-report-mvn)
+plugin's output for a Maven-driven run) for anything it healed, and update
+the real `@FindBy`/`@AndroidFindBy` locator in the page/screen object to
+match — treat a healed locator as a TODO, not a fix. A locator that keeps
+getting healed run after run means the underlying page/app changed and the
+source should be updated, not left to Healenium indefinitely.
+
+**Known, not-yet-verified caveat:** this project's own BiDi features
+(`NetworkMockUtil`/`JsErrorMonitor`/`NetworkPerformanceMonitor`, all wired
+into every `@web` scenario via `hooks.Hooks`) haven't been exercised together
+with a wrapped `SelfHealingDriver` against a live `hlm-backend` in this
+environment (no Docker available here to run the backend). Before relying on
+both at once, confirm `NetworkPerformanceMonitor`'s
+`org.openqa.selenium.bidi.module.Network` module still initializes correctly
+against the wrapped driver — see the comment on
+`DriverFactory#maybeWrapForSelfHealing`.
+
+### AI-assisted failure triage
+
+Every run's failed/broken scenarios are automatically grouped by likely root
+cause into five categories: **Product bug**, **Locator problems**,
+**Timeout problems**, **Environment problems**, **Data problems** (plus
+Allure's own **Ignored tests** bucket for skips). This happens two ways, kept
+in sync by hand:
+
+- **`src/test/resources/allure/categories.json`** — Allure's native
+  categories feature. Open the generated Allure report's "Categories" tab
+  after any run to see failures grouped this way, no extra step needed.
+- **`reporting.FailureTriageReport`** — re-applies the same regexes itself
+  (scanning `target/allure-results/*-result.json` directly) and writes one
+  consolidated `target/allure-results/failure-triage-summary.json` for the
+  whole run, logging a per-category count. Wired into
+  `hooks.Hooks#globalTeardown` (`@AfterAll`), so a plain `mvn test` always
+  produces it — this is what actually satisfies the DoD ("every failed run
+  includes a categorised failure summary"), with no LLM, network call, or
+  config needed.
+
+Category logic (see the `Category` enum in `FailureTriageReport` and the
+matching entries in `categories.json` — **update both together**):
+
+| Category | Matched on |
+|---|---|
+| Product bug | `AssertionError` anywhere in the trace — the app's actual behavior violated an expectation |
+| Locator problems | A direct Selenium element exception (`NoSuchElementException`, `StaleElementReferenceException`, etc.), or a `TimeoutException` raised from inside `utils.WaitUtils` — this framework's explicit-wait helper, so a wait timing out there means "the locator/element wasn't there/ready," not a slow network |
+| Timeout problems | A `TimeoutException` raised from a raw WebDriver command (`RemoteWebDriver.get`, `executeAsyncScript`, `JdkHttpClient`) rather than through `WaitUtils` — a slow page load or script, not a bad locator |
+| Environment problems | `ConfigurationException`, `RetryExhaustedException`, `WebDriverException`, `SessionNotCreatedException`, a connection-level exception (`ConnectException`/`UnknownHostException`/etc.) |
+| Data problems | `TestDataException`, malformed JSON/number parsing from a test data file |
+
+This is a heuristic, not a guarantee — e.g. a broken locator that happens to
+hang on a raw command instead of a `WaitUtils` call would land in "Timeout
+problems" instead of "Locator problems." Treat a mis-categorised failure as a
+sign the regex needs tightening, not as the triage being wrong to trust.
+
+Because `hooks.Hooks#globalTeardown` only fires once Cucumber's own suite
+finishes, its summary may miss failures from other `testng.xml` test classes
+(e.g. `tests.LoginTest`) still running in a different parallel thread. For a
+summary covering the *entire* run, re-run it after `mvn test` exits:
+
+```bash
+mvn exec:java -Dexec.mainClass=reporting.FailureTriageReport
+```
+
+**Optional LLM summary** (checklist item: "optionally send failure logs to
+an LLM for summaries") — `ai.LlmFailureSummarizer` turns
+`failure-triage-summary.json` into a short natural-language write-up (likely
+root cause + suggested next step per category). It is **off by default**
+(`aiFailureSummaryEnabled=false`) and, per [`CLAUDE.md`](CLAUDE.md)
+"Keeping AI out of CI," **never runs automatically** — it's a manual,
+development-time step, not a hook or Maven-phase binding:
+
+```bash
+mvn exec:java -Dexec.mainClass=ai.LlmFailureSummarizer
+```
+
+To use it: set `aiFailureSummaryEnabled=true` plus `llmApiUrl`/`llmModel` in
+`config/<env>.properties` (or via `-D`), and `LLM_API_KEY` as a real
+environment variable or local `.env` entry — **never** in a committed
+`.properties` file, see [`SECRETS.md`](SECRETS.md). It targets a generic
+OpenAI-compatible `/chat/completions` request/response shape (also spoken by
+Azure OpenAI and many self-hosted LLM gateways); adjust
+`LlmFailureSummarizer.buildRequestBody`/`extractReply` if your endpoint's
+schema differs. With the toggle off, or any of those three missing, it logs
+why it's skipping and exits cleanly — it never errors a build over a missing
+or misconfigured LLM endpoint.
+
 ### Step definitions
 
 Add a `<Feature>Steps.java` class under `steps/` — it's auto-discovered

@@ -1,5 +1,6 @@
 package utils;
 
+import com.epam.healenium.SelfHealingDriver;
 import config.ConfigReader;
 import io.appium.java_client.windows.WindowsDriver;
 import io.appium.java_client.windows.options.WindowsOptions;
@@ -61,8 +62,30 @@ public class DriverFactory {
             default -> createLocalDriver(browser, headless);
         };
 
+        webDriver = maybeWrapForSelfHealing(webDriver);
         driver.set(webDriver);
         return webDriver;
+    }
+
+    /**
+     * Wraps the delegate in Healenium's {@link SelfHealingDriver} when selfHealingEnabled=true
+     * (default: false — see dev.properties and CONTRIBUTING.md "Self-healing locators
+     * (Healenium)"), so a broken locator is auto-recovered and the attempt is recorded in
+     * hlm-backend instead of just failing the scenario. Left unwrapped by default: it needs
+     * the docker-compose-healenium.yml backend running, and nothing here falls back
+     * gracefully if it isn't (findElement calls would just fail against an unreachable
+     * backend) — so this is opt-in per environment/run, not a silent always-on behavior.
+     *
+     * Known caveat, not yet verified end-to-end: SelfHealingDriver proxies the plain WebDriver
+     * contract, and it's unconfirmed whether that proxy still exposes the BiDi capability
+     * interfaces utils.NetworkMockUtil/JsErrorMonitor/NetworkPerformanceMonitor need
+     * (org.openqa.selenium.bidi.module.Network, etc.). Enabling self-healing on a @web
+     * scenario alongside those BiDi features hasn't been tested against a live hlm-backend in
+     * this environment (no Docker available) — verify that combination before relying on it.
+     */
+    private static WebDriver maybeWrapForSelfHealing(WebDriver delegate) {
+        boolean selfHealingEnabled = ConfigReader.get("selfHealingEnabled", "false").equalsIgnoreCase("true");
+        return selfHealingEnabled ? SelfHealingDriver.create(delegate) : delegate;
     }
 
     private static WebDriver createLocalDriver(String browser, boolean headless) {

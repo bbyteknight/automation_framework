@@ -15,6 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.openqa.selenium.WebDriver;
 import reporting.AllureReportSetup;
+import reporting.FailureTriageReport;
 import testdata.ApiTestDataManager;
 import utils.CloudStatusReporter;
 import utils.DownloadManager;
@@ -67,6 +68,10 @@ public class Hooks {
         // Safe even if no scenario ever queried the database — closeAll() no-ops when the
         // pool was never initialized, so this doesn't force a DB connection on every run.
         DbClient.closeAll();
+        // Only sees whatever target/allure-results/*-result.json files exist right now — see
+        // FailureTriageReport's own javadoc for re-running it after the full suite (including
+        // any plain-TestNG classes running in another parallel thread) finishes.
+        FailureTriageReport.generate();
         logger.info("🔚 Global teardown complete — auth token cleared, DB pool closed.");
     }
 

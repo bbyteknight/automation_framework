@@ -58,6 +58,7 @@
         <cucumber.version>7.20.1</cucumber.version>
         <cucumber-reporting.version>5.8.1</cucumber-reporting.version>
         <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
+        <healenium.version>3.7.0</healenium.version>
         <allure.version>2.35.5</allure.version>
         <exec-maven-plugin.version>3.6.4</exec-maven-plugin.version>
         <sonar-maven-plugin.version>4.0.0.4121</sonar-maven-plugin.version>
@@ -80,6 +81,24 @@
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
             <version>${testng.version}</version>
+        </dependency>
+        <!-- utils.DriverFactory — wraps the web driver in SelfHealingDriver when
+             selfHealingEnabled=true (see dev.properties and CONTRIBUTING.md "Self-healing
+             locators (Healenium)"). Needs the hlm-backend container from
+             docker-compose-healenium.yml running to actually record/heal anything; with the
+             toggle off (the default) this dependency sits unused. Excludes slf4j-simple (this
+             project already binds slf4j to log4j2 — see log4j-slf4j2-impl above — and a second
+             binding on the classpath produces an "multiple bindings" warning/ambiguity). -->
+        <dependency>
+            <groupId>com.epam.healenium</groupId>
+            <artifactId>healenium-web</artifactId>
+            <version>${healenium.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-simple</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.google.code.gson</groupId>

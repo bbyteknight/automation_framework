@@ -1,0 +1,42 @@
+# Healenium self-healing backend — separate from docker-compose.yml (Selenium Grid), since
+# this is only needed when selfHealingEnabled=true (see dev.properties and CONTRIBUTING.md
+# "Self-healing locators (Healenium)"). Start it before a self-healing run:
+#
+#   docker compose -f docker-compose-healenium.yml up -d
+#
+# hlm-backend stores every locator healenium-web sees (healthy or healed) and serves the
+# report UI/API at http://localhost:7878 — that's where healed locators are reviewed (see
+# CONTRIBUTING.md for the exact report path, since it depends on the installed hlm-backend
+# version). Change POSTGRES_PASSWORD/SPRING_POSTGRES_PASSWORD below before using this
+# anywhere but a local throwaway dev environment.
+#
+# "latest" is used here for local-dev convenience. Pin an exact tag from
+# https://hub.docker.com/r/healenium/hlm-backend/tags before relying on this in CI, so a new
+# backend release can't silently change behavior under an unpinned test run.
+services:
+  healenium-db:
+    image: postgres:15.5-alpine
+    container_name: healenium-db
+    environment:
+      POSTGRES_DB: healenium
+      POSTGRES_USER: healenium_user
+      POSTGRES_PASSWORD: healenium_pass
+    ports:
+      - "5432:5432"
+
+  hlm-backend:
+    image: healenium/hlm-backend:latest
+    container_name: hlm-backend
+    depends_on:
+      - healenium-db
+    environment:
+      SPRING_POSTGRES_DB: healenium
+      SPRING_POSTGRES_SCHEMA: healenium
+      SPRING_POSTGRES_USER: healenium_user
+      SPRING_POSTGRES_PASSWORD: healenium_pass
+      SPRING_POSTGRES_DB_HOST: healenium-db
+      KEY_SELECTOR_URL: "false"
+      COLLECT_METRICS: "true"
+      HLM_LOG_LEVEL: info
+    ports:
+      - "7878:7878"

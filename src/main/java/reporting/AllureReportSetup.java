@@ -17,8 +17,11 @@ import java.util.Properties;
  *  - environment.properties: populates the report's "Environment" widget with what this run
  *    actually used (env/platform/browser/device/execution mode/build) — Allure just displays
  *    whatever key=value pairs are in this file.
- *  - categories.json: classifies failures (product defect vs. config/test-data/infra problem)
- *    by matching the custom exception types in exceptions/ against the failure stack trace.
+ *  - categories.json: classifies failures by likely root cause — product bug, locator,
+ *    timeout, environment, or data problem (see CONTRIBUTING.md "AI-assisted failure
+ *    triage") — by matching exception types/frames against the failure stack trace.
+ *    reporting.FailureTriageReport applies the same categories again at run end to produce a
+ *    single consolidated summary; its regexes must be kept in sync with this file's.
  */
 public final class AllureReportSetup {
 
